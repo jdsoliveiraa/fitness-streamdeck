@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html>
+<head lang="en">
+	<title>Workout Settings</title>
+	<meta charset="utf-8" />
+	<script src="sdpi-components.js"></script>
+	<style>
+		hr { border: none; border-top: 1px solid #3a3a3c; margin: 12px 0; }
+		.section-title { color: #9b9b9b; font-size: 11px; text-transform: uppercase; margin: 8px 12px 4px; }
+		.form-row { display: flex; align-items: center; padding: 4px 12px; gap: 8px; }
+		.form-row label { color: #9b9b9b; font-size: 12px; min-width: 70px; text-align: right; }
+		.form-row input, .form-row select {
+			flex: 1; background: #1a1a1c; border: 1px solid #3a3a3c; border-radius: 4px;
+			color: #d5d5d5; padding: 4px 8px; font-size: 12px;
+		}
+		.form-row .unit { color: #6b6b6b; font-size: 11px; min-width: 36px; }
+		.btn-row { display: flex; gap: 6px; padding: 8px 12px; flex-wrap: wrap; }
+		.btn {
+			background: #2a2a2c; border: 1px solid #3a3a3c; border-radius: 4px;
+			color: #d5d5d5; padding: 4px 10px; font-size: 11px; cursor: pointer;
+		}
+		.btn:hover { background: #3a3a3c; }
+		.btn.primary { background: #0a84ff; border-color: #0a84ff; }
+		.btn.primary:hover { background: #0070e0; }
+		.btn.danger { color: #ff6b6b; }
+		.btn.danger:hover { background: #3a2020; }
+		select#planSelect {
+			width: 100%; background: #1a1a1c; border: 1px solid #3a3a3c; border-radius: 4px;
+			color: #d5d5d5; padding: 6px 8px; font-size: 12px; margin: 0 12px; box-sizing: calc(100% - 24px);
+		}
+		.sdpi-wrapper { padding: 0; }
+	</style>
+</head>
+<body>
+	<div class="section-title">Selected Plan</div>
+	<div class="form-row">
+		<select id="planSelect"></select>
+	</div>
+
+	<hr />
+	<div class="section-title">Edit Plan</div>
+
+	<div class="form-row">
+		<label>Name</label>
+		<input type="text" id="editName" />
+	</div>
+	<div class="form-row">
+		<label>Goal</label>
+		<select id="editGoalType">
+			<option value="time">Time</option>
+			<option value="distance">Distance</option>
+			<option value="calories">Calories</option>
+		</select>
+	</div>
+	<div class="form-row">
+		<label>Value</label>
+		<input type="number" id="editGoalValue" step="1" min="1" />
+		<span class="unit" id="goalUnit">min</span>
+	</div>
+	<div class="form-row">
+		<label>Speed</label>
+		<input type="number" id="editSpeed" step="0.5" min="0.5" max="20" />
+		<span class="unit">km/h</span>
+	</div>
+	<div class="form-row">
+		<label>Incline</label>
+		<input type="number" id="editIncline" step="1" min="0" max="15" />
+		<span class="unit">%</span>
+	</div>
+
+	<div class="btn-row">
+		<button class="btn primary" id="saveBtn">Save</button>
+		<button class="btn" id="newBtn">+ New Plan</button>
+		<button class="btn danger" id="deleteBtn">Delete</button>
+		<button class="btn" id="resetBtn">Reset All</button>
+	</div>
+
+<script>
+(() => {
+	let plans = [];
+	let selectedPlanId = null;
+	let actionSettings = {};
+	let ws = null;
+	let piUUID = null;
+
+	// --- SD PI Connection ---
+	window.connectElgatoStreamDeckSocket = (port, uuid, event, info, actionInfo) => {
+		piUUID = uuid;
+		const parsed = JSON.parse(actionInfo);
+		actionSettings = parsed.payload?.settings || {};
+		selectedPlanId = actionSettings.selectedPlanId || null;
+
+		ws = new WebSocket(`ws://localhost:${port}`);
+		ws.onopen = () => {
+			ws.send(JSON.stringify({ event, uuid }));
+			// Request plans from plugin
+			ws.send(JSON.stringify({
+				event: "sendToPlugin",
+				action: parsed.action,
+				context: uuid,
+				payload: { action: "getPlans" }
+			}));
+		};
+		ws.onmessage = (evt) => {
+			const msg = JSON.parse(evt.data);
+			if (msg.event === "sendToPropertyInspector") {
+				const payload = msg.payload;
+				if (payload.event === "plans") {
+					plans = payload.plans || [];
+					populateDropdown();
+					populateEditor();
+				}
+			}
+			if (msg.event === "didReceiveSettings") {
+				actionSettings = msg.payload?.settings || {};
+				selectedPlanId = actionSettings.selectedPlanId || null;
+				populateDropdown();
+				populateEditor();
+			}
+		};
+	};
+
+	function sendToPlugin(payload) {
+		if (!ws) return;
+		ws.send(JSON.stringify({
+			event: "sendToPlugin",
+			action: "com.jdsoliveiraa.fitdeck.workout",
+			context: piUUID,
+			payload
+		}));
+	}
+
+	function setActionSetting(key, value) {
+		actionSettings[key] = value;
+		if (!ws) return;
+		ws.send(JSON.stringify({
+			event: "setSettings",
+			context: piUUID,
+			payload: actionSettings
+		}));
+	}
+
+	// --- UI ---
+	const planSelect = document.getElementById("planSelect");
+	const editName = document.getElementById("editName");
+	const editGoalType = document.getElementById("editGoalType");
+	const editGoalValue = document.getElementById("editGoalValue");
+	const editSpeed = document.getElementById("editSpeed");
+	const editIncline = document.getElementById("editIncline");
+	const goalUnit = document.getElementById("goalUnit");
+
+	function populateDropdown() {
+		planSelect.innerHTML = "";
+		for (const p of plans) {
+			const opt = document.createElement("option");
+			opt.value = p.id;
+			opt.textContent = `${p.name} (${p.description})`;
+			planSelect.appendChild(opt);
+		}
+		if (selectedPlanId && plans.some(p => p.id === selectedPlanId)) {
+			planSelect.value = selectedPlanId;
+		} else if (plans.length) {
+			planSelect.value = plans[0].id;
+			selectedPlanId = plans[0].id;
+			setActionSetting("selectedPlanId", selectedPlanId);
+		}
+	}
+
+	function populateEditor() {
+		const plan = plans.find(p => p.id === planSelect.value);
+		if (!plan) return;
+		editName.value = plan.name;
+		editGoalType.value = plan.goalType;
+		editGoalValue.value = plan.goalValue;
+		editSpeed.value = plan.speed;
+		editIncline.value = plan.incline;
+		updateGoalUnit();
+	}
+
+	function updateGoalUnit() {
+		const units = { time: "min", distance: "km", calories: "cal" };
+		goalUnit.textContent = units[editGoalType.value] || "";
+	}
+
+	function getCurrentPlan() {
+		return {
+			id: planSelect.value,
+			name: editName.value.trim() || "Unnamed",
+			goalType: editGoalType.value,
+			goalValue: parseFloat(editGoalValue.value) || 1,
+			speed: parseFloat(editSpeed.value) || 3.0,
+			incline: parseInt(editIncline.value) || 0,
+			description: "" // auto-generated by plugin
+		};
+	}
+
+	// --- Events ---
+	planSelect.addEventListener("change", () => {
+		selectedPlanId = planSelect.value;
+		setActionSetting("selectedPlanId", selectedPlanId);
+		populateEditor();
+	});
+
+	editGoalType.addEventListener("change", updateGoalUnit);
+
+	document.getElementById("saveBtn").addEventListener("click", () => {
+		sendToPlugin({ action: "savePlan", plan: getCurrentPlan() });
+	});
+
+	document.getElementById("newBtn").addEventListener("click", () => {
+		const newId = "custom-" + Date.now();
+		const newPlan = {
+			id: newId,
+			name: "New Plan",
+			goalType: "time",
+			goalValue: 10,
+			speed: 4.0,
+			incline: 0,
+			description: ""
+		};
+		sendToPlugin({ action: "savePlan", plan: newPlan });
+		selectedPlanId = newId;
+		setActionSetting("selectedPlanId", newId);
+	});
+
+	document.getElementById("deleteBtn").addEventListener("click", () => {
+		if (plans.length <= 1) return;
+		const id = planSelect.value;
+		sendToPlugin({ action: "deletePlan", planId: id });
+		// Select first remaining plan
+		const remaining = plans.filter(p => p.id !== id);
+		if (remaining.length) {
+			selectedPlanId = remaining[0].id;
+			setActionSetting("selectedPlanId", selectedPlanId);
+		}
+	});
+
+	document.getElementById("resetBtn").addEventListener("click", () => {
+		sendToPlugin({ action: "resetPlans" });
+	});
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,70 @@
+{
+	"$schema": "https://schemas.elgato.com/streamdeck/plugins/layout.json",
+	"id": "fitdeck-status",
+	"items": [
+		{
+			"key": "label1",
+			"type": "text",
+			"rect": [8, 2, 88, 16],
+			"font": { "size": 10 },
+			"alignment": "left",
+			"color": "#AAAAAA"
+		},
+		{
+			"key": "value1",
+			"type": "text",
+			"rect": [8, 20, 88, 26],
+			"font": { "size": 18, "weight": 700 },
+			"alignment": "left",
+			"color": "#FFFFFF"
+		},
+		{
+			"key": "label2",
+			"type": "text",
+			"rect": [104, 2, 88, 16],
+			"font": { "size": 10 },
+			"alignment": "left",
+			"color": "#AAAAAA"
+		},
+		{
+			"key": "value2",
+			"type": "text",
+			"rect": [104, 20, 88, 26],
+			"font": { "size": 18, "weight": 700 },
+			"alignment": "left",
+			"color": "#FFFFFF"
+		},
+		{
+			"key": "label3",
+			"type": "text",
+			"rect": [8, 52, 88, 16],
+			"font": { "size": 10 },
+			"alignment": "left",
+			"color": "#AAAAAA"
+		},
+		{
+			"key": "value3",
+			"type": "text",
+			"rect": [8, 70, 88, 26],
+			"font": { "size": 18, "weight": 700 },
+			"alignment": "left",
+			"color": "#FFFFFF"
+		},
+		{
+			"key": "label4",
+			"type": "text",
+			"rect": [104, 52, 88, 16],
+			"font": { "size": 10 },
+			"alignment": "left",
+			"color": "#AAAAAA"
+		},
+		{
+			"key": "value4",
+			"type": "text",
+			"rect": [104, 70, 88, 26],
+			"font": { "size": 18, "weight": 700 },
+			"alignment": "left",
+			"color": "#FFFFFF"
+		}
+	]
+}

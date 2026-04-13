@@ -1,0 +1,135 @@
+{
+    "$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
+    "UUID": "com.jdsoliveiraa.fitdeck",
+    "Name": "FitDeck",
+    "Version": "0.1.0.0",
+    "Author": "Joao Oliveira",
+    "Description": "Control your FITFIU treadmill from Stream Deck — start, stop, set speed, track workouts with live key updates.",
+    "Icon": "imgs/plugin/marketplace",
+    "CategoryIcon": "imgs/plugin/category-icon",
+    "Category": "FitDeck",
+    "CodePath": "bin/plugin.js",
+    "SDKVersion": 2,
+    "Software": {
+        "MinimumVersion": "6.9"
+    },
+    "OS": [
+        {
+            "Platform": "mac",
+            "MinimumVersion": "10.15"
+        }
+    ],
+    "Nodejs": {
+        "Version": "20",
+        "Debug": "enabled"
+    },
+    "Actions": [
+        {
+            "Name": "Start / Stop",
+            "UUID": "com.jdsoliveiraa.fitdeck.start-stop",
+            "Icon": "imgs/actions/start-stop/action",
+            "Tooltip": "Toggle treadmill on/off",
+            "Controllers": ["Keypad"],
+            "States": [
+                { "Image": "imgs/actions/start-stop/start", "Name": "Start" },
+                { "Image": "imgs/actions/start-stop/stop", "Name": "Stop" }
+            ]
+        },
+        {
+            "Name": "Speed Up",
+            "UUID": "com.jdsoliveiraa.fitdeck.speed-up",
+            "Icon": "imgs/actions/speed-up/action",
+            "Tooltip": "Increase treadmill speed",
+            "Controllers": ["Keypad"],
+            "States": [
+                { "Image": "imgs/actions/speed-up/action" }
+            ]
+        },
+        {
+            "Name": "Speed Down",
+            "UUID": "com.jdsoliveiraa.fitdeck.speed-down",
+            "Icon": "imgs/actions/speed-down/action",
+            "Tooltip": "Decrease treadmill speed",
+            "Controllers": ["Keypad"],
+            "States": [
+                { "Image": "imgs/actions/speed-down/action" }
+            ]
+        },
+        {
+            "Name": "Status Display",
+            "UUID": "com.jdsoliveiraa.fitdeck.status-display",
+            "Icon": "imgs/actions/status-display/action",
+            "Tooltip": "Live treadmill metrics",
+            "Controllers": ["Keypad"],
+            "DisableAutomaticStates": true,
+            "States": [
+                { "Image": "imgs/actions/status-display/action", "ShowTitle": false }
+            ]
+        },
+        {
+            "Name": "Workout",
+            "UUID": "com.jdsoliveiraa.fitdeck.workout",
+            "Icon": "imgs/actions/workout/action",
+            "Tooltip": "Start a predefined workout plan",
+            "PropertyInspectorPath": "ui/workout.html",
+            "Controllers": ["Keypad"],
+            "DisableAutomaticStates": true,
+            "States": [
+                { "Image": "imgs/actions/workout/action", "ShowTitle": false }
+            ]
+        },
+        {
+            "Name": "Speed Dial",
+            "UUID": "com.jdsoliveiraa.fitdeck.speed-dial",
+            "Icon": "imgs/actions/speed-dial/action",
+            "Tooltip": "Dial to adjust speed, push to start/stop",
+            "Controllers": ["Encoder"],
+            "Encoder": {
+                "layout": "layouts/speed-layout.json",
+                "TriggerDescription": {
+                    "Rotate": "Adjust speed",
+                    "Push": "Start / Stop",
+                    "Touch": "Start / Stop"
+                }
+            },
+            "States": [
+                { "Image": "imgs/actions/speed-dial/action" }
+            ]
+        },
+        {
+            "Name": "Workout Dial",
+            "UUID": "com.jdsoliveiraa.fitdeck.workout-dial",
+            "Icon": "imgs/actions/workout-dial/action",
+            "Tooltip": "Browse and start workout plans",
+            "Controllers": ["Encoder"],
+            "Encoder": {
+                "layout": "layouts/workout-layout.json",
+                "TriggerDescription": {
+                    "Rotate": "Browse plans",
+                    "Push": "Start / Stop workout",
+                    "Touch": "Start / Stop workout"
+                }
+            },
+            "States": [
+                { "Image": "imgs/actions/workout-dial/action" }
+            ]
+        },
+        {
+            "Name": "Status Dial",
+            "UUID": "com.jdsoliveiraa.fitdeck.status-dial",
+            "Icon": "imgs/actions/status-dial/action",
+            "Tooltip": "Live metrics on touch strip",
+            "Controllers": ["Encoder"],
+            "Encoder": {
+                "layout": "layouts/status-layout.json",
+                "TriggerDescription": {
+                    "Rotate": "Cycle metrics",
+                    "Push": "Pause / Resume"
+                }
+            },
+            "States": [
+                { "Image": "imgs/actions/status-dial/action" }
+            ]
+        }
+    ]
+}

@@ -1,0 +1,32 @@
+{
+    "name": "fitdeck",
+    "version": "0.1.0",
+    "description": "Stream Deck plugin to control FITFIU treadmill via BLE",
+    "author": "Joao Oliveira",
+    "license": "MIT",
+    "type": "module",
+    "scripts": {
+        "build": "rollup -c && npm run install-native",
+        "install-native": "cd com.jdsoliveiraa.fitdeck.sdPlugin && npm install --production",
+        "watch": "rollup -c -w --watch.onEnd=\"streamdeck restart com.jdsoliveiraa.fitdeck\"",
+        "link": "streamdeck link com.jdsoliveiraa.fitdeck.sdPlugin",
+        "dev": "npm run link && npm run watch"
+    },
+    "devDependencies": {
+        "@elgato/cli": "^1.7.0",
+        "@rollup/plugin-commonjs": "^28.0.2",
+        "@rollup/plugin-node-resolve": "^16.0.0",
+        "@rollup/plugin-terser": "^0.4.4",
+        "@rollup/plugin-typescript": "^12.1.2",
+        "@tsconfig/node20": "^20.1.4",
+        "@types/node": "22.13.0",
+        "rollup": "^4.32.1",
+        "sharp": "^0.34.5",
+        "tslib": "^2.8.1",
+        "typescript": "^5.7.3"
+    },
+    "dependencies": {
+        "@abandonware/noble": "^1.9.2-25",
+        "@elgato/streamdeck": "^2.0.1"
+    }
+}

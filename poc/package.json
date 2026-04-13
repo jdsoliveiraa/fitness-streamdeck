@@ -1,0 +1,17 @@
+{
+  "name": "fitness-streamdeck",
+  "version": "0.1.0",
+  "description": "Control FITFIU treadmill via BLE from macOS",
+  "type": "module",
+  "scripts": {
+    "scan": "node scan.js",
+    "control": "node control.js",
+    "interactive": "node control.js interactive",
+    "status": "node control.js status",
+    "start": "node control.js start",
+    "stop": "node control.js stop"
+  },
+  "dependencies": {
+    "@abandonware/noble": "^1.9.2-25"
+  }
+}

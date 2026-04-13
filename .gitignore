@@ -1,0 +1,11 @@
+node_modules/
+logs/
+
+# Build output
+com.jdsoliveiraa.fitdeck.sdPlugin/bin/
+com.jdsoliveiraa.fitdeck.sdPlugin/ble-helper/FitDeckBLE.app/
+com.jdsoliveiraa.fitdeck.sdPlugin/node_modules/
+com.jdsoliveiraa.fitdeck.sdPlugin/logs/
+
+# POC dependencies
+poc/node_modules/
