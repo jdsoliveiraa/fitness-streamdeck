@@ -85,7 +85,7 @@
             "Tooltip": "Dial to adjust speed, push to start/stop",
             "Controllers": ["Encoder"],
             "Encoder": {
-                "layout": "layouts/speed-layout.json",
+                "layout": "layouts/canvas-layout.json",
                 "TriggerDescription": {
                     "Rotate": "Adjust speed",
                     "Push": "Start / Stop",
@@ -103,7 +103,7 @@
             "Tooltip": "Browse and start workout plans",
             "Controllers": ["Encoder"],
             "Encoder": {
-                "layout": "layouts/workout-layout.json",
+                "layout": "layouts/canvas-layout.json",
                 "TriggerDescription": {
                     "Rotate": "Browse plans",
                     "Push": "Start / Stop workout",
@@ -121,7 +121,7 @@
             "Tooltip": "Live metrics on touch strip",
             "Controllers": ["Encoder"],
             "Encoder": {
-                "layout": "layouts/status-layout.json",
+                "layout": "layouts/canvas-layout.json",
                 "TriggerDescription": {
                     "Rotate": "Cycle metrics",
                     "Push": "Pause / Resume"

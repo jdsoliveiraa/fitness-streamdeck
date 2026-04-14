@@ -1,35 +1,48 @@
 import { action, SingletonAction, type DialRotateEvent, type DialDownEvent, type TouchTapEvent, type WillAppearEvent, type WillDisappearEvent } from "@elgato/streamdeck";
 import { treadmillService } from "../services/treadmill-service";
+import { renderStatsView, renderSpeedFocus, renderOfflineView } from "../util/dial-renderer";
 import type { SpeedDialSettings, TreadmillStatus, ConnectionState } from "../types";
+
+const CANVAS_LAYOUT = "layouts/canvas-layout.json";
+const SPEED_FOCUS_MS = 5000;
 
 @action({ UUID: "com.jdsoliveiraa.fitdeck.speed-dial" })
 export class SpeedDialAction extends SingletonAction<SpeedDialSettings> {
 	private listening = false;
+	private showingSpeedFocus = false;
+	private speedFocusTimer: ReturnType<typeof setTimeout> | null = null;
+	private lastKnownSpeed = 0;
 
 	private statusHandler = (status: TreadmillStatus) => {
-		const pct = Math.round((status.speed / treadmillService.maxSpeed) * 100);
-		for (const action of this.actions) {
-			if (action.isDial()) {
-				action.setFeedback({
-					title: "SPEED",
-					value: `${status.speed.toFixed(1)} km/h`,
-					indicator: { value: pct },
-				});
-			}
+		const speedChanged = status.speed !== this.lastKnownSpeed;
+		this.lastKnownSpeed = status.speed;
+
+		if (speedChanged && status.speed > 0) {
+			this.showSpeedFocus(status);
+		} else if (this.showingSpeedFocus) {
+			this.setCanvas(renderSpeedFocus({
+				speed: status.speed,
+				minSpeed: treadmillService.minSpeed,
+				maxSpeed: treadmillService.maxSpeed,
+			}));
+		} else {
+			this.setCanvas(renderStatsView({
+				speed: status.speed,
+				distance: status.distance,
+				elapsedSeconds: status.elapsedSeconds,
+				calories: status.calories,
+				maxSpeed: treadmillService.maxSpeed,
+				statusCode: status.statusCode,
+			}));
 		}
 	};
 
 	private connectionHandler = (state: ConnectionState) => {
-		for (const action of this.actions) {
-			if (action.isDial()) {
-				if (state !== "connected") {
-					action.setFeedback({
-						title: "SPEED",
-						value: state === "scanning" ? "Scanning..." : "Offline",
-						indicator: { value: 0 },
-					});
-				}
-			}
+		if (state !== "connected") {
+			this.clearSpeedFocusTimer();
+			this.showingSpeedFocus = false;
+			const label = state === "scanning" ? "Scanning..." : "Offline";
+			this.setCanvas(renderOfflineView(label));
 		}
 	};
 
@@ -42,11 +55,21 @@ export class SpeedDialAction extends SingletonAction<SpeedDialSettings> {
 		treadmillService.ensureConnected();
 
 		if (ev.action.isDial()) {
-			ev.action.setFeedback({
-				title: "SPEED",
-				value: treadmillService.isConnected ? `${treadmillService.currentSpeed.toFixed(1)} km/h` : "Offline",
-				indicator: { value: 0 },
-			});
+			await ev.action.setFeedbackLayout(CANVAS_LAYOUT);
+
+			if (treadmillService.lastStatus) {
+				this.lastKnownSpeed = treadmillService.lastStatus.speed;
+				this.setCanvas(renderStatsView({
+					speed: treadmillService.lastStatus.speed,
+					distance: treadmillService.lastStatus.distance,
+					elapsedSeconds: treadmillService.lastStatus.elapsedSeconds,
+					calories: treadmillService.lastStatus.calories,
+					maxSpeed: treadmillService.maxSpeed,
+					statusCode: treadmillService.lastStatus.statusCode,
+				}));
+			} else {
+				this.setCanvas(renderOfflineView("Waiting..."));
+			}
 		}
 	}
 
@@ -54,6 +77,7 @@ export class SpeedDialAction extends SingletonAction<SpeedDialSettings> {
 		if ([...this.actions].length === 0) {
 			treadmillService.off("status", this.statusHandler);
 			treadmillService.off("connection-change", this.connectionHandler);
+			this.clearSpeedFocusTimer();
 			this.listening = false;
 		}
 	}
@@ -85,6 +109,47 @@ export class SpeedDialAction extends SingletonAction<SpeedDialSettings> {
 			await treadmillService.stop();
 		} else {
 			await treadmillService.start();
+		}
+	}
+
+	private showSpeedFocus(status: TreadmillStatus): void {
+		this.clearSpeedFocusTimer();
+		this.showingSpeedFocus = true;
+
+		this.setCanvas(renderSpeedFocus({
+			speed: status.speed,
+			minSpeed: treadmillService.minSpeed,
+			maxSpeed: treadmillService.maxSpeed,
+		}));
+
+		this.speedFocusTimer = setTimeout(() => {
+			this.speedFocusTimer = null;
+			this.showingSpeedFocus = false;
+			if (treadmillService.lastStatus) {
+				this.setCanvas(renderStatsView({
+					speed: treadmillService.lastStatus.speed,
+					distance: treadmillService.lastStatus.distance,
+					elapsedSeconds: treadmillService.lastStatus.elapsedSeconds,
+					calories: treadmillService.lastStatus.calories,
+					maxSpeed: treadmillService.maxSpeed,
+					statusCode: treadmillService.lastStatus.statusCode,
+				}));
+			}
+		}, SPEED_FOCUS_MS);
+	}
+
+	private setCanvas(dataUri: string): void {
+		for (const action of this.actions) {
+			if (action.isDial()) {
+				action.setFeedback({ canvas: dataUri });
+			}
+		}
+	}
+
+	private clearSpeedFocusTimer(): void {
+		if (this.speedFocusTimer) {
+			clearTimeout(this.speedFocusTimer);
+			this.speedFocusTimer = null;
 		}
 	}
 }

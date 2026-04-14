@@ -1,7 +1,10 @@
 import { action, SingletonAction, type DialRotateEvent, type DialDownEvent, type TouchTapEvent, type WillAppearEvent, type WillDisappearEvent } from "@elgato/streamdeck";
 import { treadmillService } from "../services/treadmill-service";
 import { workoutManager } from "../services/workout-manager";
+import { renderWorkoutBrowser, renderWorkoutProgress } from "../util/dial-renderer";
 import type { WorkoutDialSettings, WorkoutProgress } from "../types";
+
+const CANVAS_LAYOUT = "layouts/canvas-layout.json";
 
 function formatTime(s: number): string {
 	const m = Math.floor(s / 60).toString().padStart(2, "0");
@@ -28,29 +31,11 @@ export class WorkoutDialAction extends SingletonAction<WorkoutDialSettings> {
 	private selectedIndex = 0;
 
 	private progressHandler = (w: WorkoutProgress) => {
-		for (const action of this.actions) {
-			if (action.isDial()) {
-				action.setFeedback({
-					title: w.plan.name,
-					value: `${Math.round(w.percentComplete)}%`,
-					subtitle: progressSubtitle(w),
-					indicator: { value: Math.round(w.percentComplete) },
-				});
-			}
-		}
+		this.setCanvas(renderWorkoutProgress(w.plan.name, w.percentComplete, progressSubtitle(w), false));
 	};
 
 	private completeHandler = (w: WorkoutProgress) => {
-		for (const action of this.actions) {
-			if (action.isDial()) {
-				action.setFeedback({
-					title: w.plan.name,
-					value: "DONE!",
-					subtitle: progressSubtitle(w),
-					indicator: { value: 100 },
-				});
-			}
-		}
+		this.setCanvas(renderWorkoutProgress(w.plan.name, 100, progressSubtitle(w), true));
 	};
 
 	private abortedHandler = () => {
@@ -76,16 +61,13 @@ export class WorkoutDialAction extends SingletonAction<WorkoutDialSettings> {
 		}
 		treadmillService.ensureConnected();
 
+		if (ev.action.isDial()) {
+			await ev.action.setFeedbackLayout(CANVAS_LAYOUT);
+		}
+
 		if (workoutManager.isActive && workoutManager.progress) {
 			const w = workoutManager.progress;
-			if (ev.action.isDial()) {
-				ev.action.setFeedback({
-					title: w.plan.name,
-					value: `${Math.round(w.percentComplete)}%`,
-					subtitle: progressSubtitle(w),
-					indicator: { value: Math.round(w.percentComplete) },
-				});
-			}
+			this.setCanvas(renderWorkoutProgress(w.plan.name, w.percentComplete, progressSubtitle(w), w.isComplete));
 		} else {
 			this.showPlanBrowser();
 		}
@@ -131,14 +113,13 @@ export class WorkoutDialAction extends SingletonAction<WorkoutDialSettings> {
 		const plans = workoutManager.plans;
 		const plan = plans[this.selectedIndex] ?? plans[0];
 		if (!plan) return;
+		this.setCanvas(renderWorkoutBrowser(plan.name, plan.description));
+	}
+
+	private setCanvas(dataUri: string): void {
 		for (const action of this.actions) {
 			if (action.isDial()) {
-				action.setFeedback({
-					title: "WORKOUT",
-					value: plan.name,
-					subtitle: plan.description,
-					indicator: { value: 0 },
-				});
+				action.setFeedback({ canvas: dataUri });
 			}
 		}
 	}
