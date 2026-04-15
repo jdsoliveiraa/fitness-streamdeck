@@ -4,6 +4,15 @@
     "description": "Stream Deck plugin to control FITFIU treadmill via BLE",
     "author": "Joao Oliveira",
     "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/jdsoliveiraa/fitness-streamdeck.git"
+    },
+    "homepage": "https://github.com/jdsoliveiraa/fitness-streamdeck",
+    "bugs": {
+        "url": "https://github.com/jdsoliveiraa/fitness-streamdeck/issues"
+    },
+    "keywords": ["streamdeck", "treadmill", "ble", "fitshow", "fitfiu", "fitness"],
     "type": "module",
     "scripts": {
         "build": "rollup -c && npm run install-native",

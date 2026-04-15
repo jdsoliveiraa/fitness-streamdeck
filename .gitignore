@@ -1,12 +1,18 @@
 node_modules/
 logs/
+*.log
 
 # Build output
 com.jdsoliveiraa.fitdeck.sdPlugin/bin/
 com.jdsoliveiraa.fitdeck.sdPlugin/ble-helper/FitDeckBLE.app/
 com.jdsoliveiraa.fitdeck.sdPlugin/node_modules/
 com.jdsoliveiraa.fitdeck.sdPlugin/logs/
-com.jdsoliveiraa.fitdeck.sdPlugin/*.log
 
 # POC dependencies
 poc/node_modules/
+
+# OS / IDE
+.DS_Store
+.env
+.vscode/
+*.tgz
