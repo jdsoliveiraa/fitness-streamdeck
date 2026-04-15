@@ -137,6 +137,97 @@ export function renderOfflineView(label: string): string {
 	);
 }
 
+// ── Workout Dial: Goal Selector (in browse list) ───────────────────────
+
+export function renderGoalSelector(goalType: string): string {
+	const labels: Record<string, { name: string; desc: string; icon: string }> = {
+		distance: { name: "Distance", desc: "Set a distance target", icon: "&#x1F3C3;" },
+		time:     { name: "Time",     desc: "Set a time target",     icon: "&#x23F1;" },
+		calories: { name: "Calories", desc: "Set a calorie target",  icon: "&#x1F525;" },
+	};
+	const l = labels[goalType] ?? labels.distance;
+
+	return svg(
+		`<rect width="200" height="100" fill="#0d0d1a" rx="0"/>` +
+
+		`<text x="100" y="16" text-anchor="middle" fill="#5588cc" font-family="Arial,sans-serif" font-size="9" font-weight="600">GOAL</text>` +
+
+		`<text x="100" y="44" text-anchor="middle" fill="#fff" font-family="Arial,sans-serif" font-size="18" font-weight="700">${esc(l.name)}</text>` +
+
+		`<text x="100" y="64" text-anchor="middle" fill="#666" font-family="Arial,sans-serif" font-size="10">${esc(l.desc)}</text>` +
+
+		// Blue bar placeholder
+		progressBar(16, 76, 168, 10, 0, "g3") +
+
+		`<text x="100" y="98" text-anchor="middle" fill="#444" font-family="Arial,sans-serif" font-size="8">PUSH TO SET</text>`
+	);
+}
+
+// ── Workout Dial: Goal Value Picker ────────────────────────────────────
+
+export function renderGoalPicker(goalType: string, value: number): string {
+	const units: Record<string, string> = { distance: "km", time: "min", calories: "cal" };
+	const unit = units[goalType] ?? "";
+	const display = goalType === "distance" ? value.toFixed(1) : String(value);
+	const title = goalType === "distance" ? "SET DISTANCE" : goalType === "time" ? "SET TIME" : "SET CALORIES";
+
+	return svg(
+		`<rect width="200" height="100" fill="#0d0d1a" rx="0"/>` +
+
+		`<text x="100" y="16" text-anchor="middle" fill="#5588cc" font-family="Arial,sans-serif" font-size="9" font-weight="600">${esc(title)}</text>` +
+
+		// Arrows
+		`<text x="30" y="52" text-anchor="middle" fill="#444" font-family="Arial,sans-serif" font-size="18">\u25C0</text>` +
+		`<text x="170" y="52" text-anchor="middle" fill="#444" font-family="Arial,sans-serif" font-size="18">\u25B6</text>` +
+
+		// Big value
+		`<text x="100" y="54" text-anchor="middle" fill="#fff" font-family="Arial,sans-serif" font-size="30" font-weight="700">${esc(display)}</text>` +
+		`<text x="100" y="70" text-anchor="middle" fill="#555" font-family="Arial,sans-serif" font-size="11">${esc(unit)}</text>` +
+
+		progressBar(16, 80, 168, 8, 0, "g3") +
+
+		`<text x="100" y="98" text-anchor="middle" fill="#5588cc" font-family="Arial,sans-serif" font-size="8">PUSH TO START</text>`
+	);
+}
+
+// ── Workout Dial: Completion Summary ───────────────────────────────────
+
+export interface WorkoutSummaryData {
+	name: string;
+	distance: number;
+	elapsedSeconds: number;
+	calories: number;
+}
+
+export function renderWorkoutSummary(d: WorkoutSummaryData): string {
+	return svg(
+		`<rect width="200" height="100" fill="#0d0d1a" rx="0"/>` +
+
+		// Header
+		`<text x="100" y="14" text-anchor="middle" fill="#00cc66" font-family="Arial,sans-serif" font-size="9" font-weight="600">COMPLETE</text>` +
+		`<text x="100" y="30" text-anchor="middle" fill="#fff" font-family="Arial,sans-serif" font-size="13" font-weight="700">${esc(d.name)}</text>` +
+
+		// Full green bar
+		progressBar(16, 36, 168, 6, 100, "g1") +
+
+		// Metrics row
+		`<text x="36" y="58" text-anchor="middle" fill="#777" font-family="Arial,sans-serif" font-size="8" font-weight="600">DIST</text>` +
+		`<text x="36" y="72" text-anchor="middle" fill="#ccc" font-family="Arial,sans-serif" font-size="13" font-weight="600">${esc(formatDist(d.distance))}</text>` +
+
+		`<text x="100" y="58" text-anchor="middle" fill="#777" font-family="Arial,sans-serif" font-size="8" font-weight="600">TIME</text>` +
+		`<text x="100" y="72" text-anchor="middle" fill="#ccc" font-family="Arial,sans-serif" font-size="13" font-weight="600">${formatTime(d.elapsedSeconds)}</text>` +
+
+		`<text x="164" y="58" text-anchor="middle" fill="#777" font-family="Arial,sans-serif" font-size="8" font-weight="600">CAL</text>` +
+		`<text x="164" y="72" text-anchor="middle" fill="#ff9900" font-family="Arial,sans-serif" font-size="13" font-weight="600">${d.calories.toFixed(1)}</text>` +
+
+		// Dividers
+		`<line x1="68" y1="52" x2="68" y2="78" stroke="#222" stroke-width="1"/>` +
+		`<line x1="132" y1="52" x2="132" y2="78" stroke="#222" stroke-width="1"/>` +
+
+		`<text x="100" y="94" text-anchor="middle" fill="#444" font-family="Arial,sans-serif" font-size="8">PUSH TO DISMISS</text>`
+	);
+}
+
 // ── Workout Dial: Plan Browser ──────────────────────────────────────────
 
 export function renderWorkoutBrowser(name: string, description: string): string {
@@ -158,8 +249,8 @@ export function renderWorkoutBrowser(name: string, description: string): string 
 
 // ── Workout Dial: Active Progress ───────────────────────────────────────
 
-export function renderWorkoutProgress(name: string, pct: number, subtitle: string, isComplete: boolean): string {
-	const gradient = isComplete ? "g1" : "g2";
+export function renderWorkoutProgress(name: string, pct: number, subtitle: string, isComplete: boolean, isGoal = false): string {
+	const gradient = isComplete ? "g1" : isGoal ? "g3" : "g2";
 	const valueText = isComplete ? "DONE!" : `${Math.round(pct)}%`;
 	const valueColor = isComplete ? "#00cc66" : "#fff";
 

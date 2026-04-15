@@ -42,9 +42,9 @@ export class TreadmillService extends EventEmitter {
 		if (this.socket || this.connecting) return;
 		this.connecting = true;
 
-		// Launch helper app if not already running
+		// On first connect, kill any stale helper from a previous plugin run and relaunch
 		if (!this.helperLaunched) {
-			this.launchHelper();
+			await this.restartHelper();
 		}
 
 		// Try connecting to the socket with retries
@@ -60,6 +60,28 @@ export class TreadmillService extends EventEmitter {
 			}
 		}
 		this.connecting = false;
+	}
+
+	private async restartHelper(): Promise<void> {
+		// If an old helper is still running from a previous plugin session, tell it to quit
+		try {
+			const tempSocket = connect({ path: SOCKET_PATH });
+			await new Promise<void>((resolve, reject) => {
+				const timeout = setTimeout(() => { tempSocket.destroy(); resolve(); }, 2000);
+				tempSocket.on("connect", () => {
+					tempSocket.write(JSON.stringify({ method: "quit" }) + "\n");
+					clearTimeout(timeout);
+					tempSocket.destroy();
+					resolve();
+				});
+				tempSocket.on("error", () => { clearTimeout(timeout); resolve(); });
+			});
+			// Give it a moment to shut down
+			await new Promise((r) => setTimeout(r, 500));
+		} catch {
+			// No stale helper running, that's fine
+		}
+		this.launchHelper();
 	}
 
 	private launchHelper(): void {

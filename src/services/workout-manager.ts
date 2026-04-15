@@ -18,6 +18,9 @@ export const DEFAULT_PLANS: WorkoutPlan[] = [
 
 export function generateDescription(plan: WorkoutPlan): string {
 	const unit = plan.goalType === "time" ? "min" : plan.goalType === "distance" ? "km" : "cal";
+	if (plan.goalOnly) {
+		return `${plan.goalValue} ${unit} goal`;
+	}
 	let desc = `${plan.goalValue} ${unit} at ${plan.speed} km/h`;
 	if (plan.incline > 0) desc += `, ${plan.incline}%`;
 	return desc;
@@ -119,17 +122,14 @@ export class WorkoutManager extends EventEmitter {
 			await sleep(500);
 		}
 
-		// Set speed (twice for reliability, matching PoC pattern)
-		if (plan.incline > 0) {
-			await treadmillService.setSpeedAndIncline(plan.speed, plan.incline);
-		} else {
-			await treadmillService.setSpeed(plan.speed);
-		}
-		await sleep(1000);
-		if (plan.incline > 0) {
-			await treadmillService.setSpeedAndIncline(plan.speed, plan.incline);
-		} else {
-			await treadmillService.setSpeed(plan.speed);
+		// Set speed — goal-only plans let the user control speed manually
+		if (!plan.goalOnly) {
+			await sleep(500);
+			if (plan.incline > 0) {
+				await treadmillService.setSpeedAndIncline(plan.speed, plan.incline);
+			} else {
+				await treadmillService.setSpeed(plan.speed);
+			}
 		}
 
 		// Start monitoring

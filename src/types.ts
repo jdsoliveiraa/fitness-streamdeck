@@ -35,6 +35,7 @@ export interface WorkoutPlan {
 	speed: number;
 	incline: number;
 	description: string;
+	goalOnly?: boolean;
 }
 
 export interface WorkoutProgress {

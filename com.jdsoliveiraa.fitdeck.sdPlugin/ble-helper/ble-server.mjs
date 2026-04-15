@@ -407,9 +407,29 @@ server.listen(SOCKET_PATH, () => {
 	log(`Listening on ${SOCKET_PATH}`);
 });
 
-// Log Bluetooth adapter state changes (sleep/wake cycles cause poweredOff -> poweredOn)
+// Handle Bluetooth adapter state changes (sleep/wake cycles cause poweredOff -> poweredOn)
 noble.on("stateChange", (state) => {
 	log("Bluetooth adapter state:", state);
+	if (state === "poweredOff") {
+		// Adapter went down — tear down stale connection
+		stopPolling();
+		if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+		if (peripheral) {
+			try { peripheral.disconnectAsync(); } catch {}
+			peripheral = null;
+		}
+		writeChar = null;
+		notifyChar = null;
+		scanning = false;
+		setConnectionState("disconnected");
+		log("Cleaned up stale connection after adapter power-off");
+	} else if (state === "poweredOn") {
+		// Adapter back — auto-scan if not already connected
+		if (connectionState !== "connected") {
+			log("Adapter powered on — starting scan");
+			scan();
+		}
+	}
 });
 
 // Keep alive
