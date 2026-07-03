@@ -6,6 +6,7 @@ import net from "node:net";
 import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
+import { spawn } from "node:child_process";
 
 const PLUGIN_DIR = process.argv[2] || process.cwd();
 const SOCKET_PATH = "/tmp/fitdeck-ble.sock";
@@ -64,6 +65,10 @@ const SCAN_TIMEOUT_MS = 15000;
 const CONNECT_TIMEOUT_MS = 15000;
 const RECONNECT_DELAY_MS = 3000;
 const POLL_INTERVAL_MS = 500;
+// After this many consecutive connect failures, noble/CoreBluetooth is wedged
+// (the treadmill is found but connectAsync keeps timing out forever). The only
+// reliable recovery is a fresh process, so self-restart instead of looping.
+const MAX_CONNECT_FAILURES = 2;
 
 // --- State ---
 let peripheral = null;
@@ -72,6 +77,7 @@ let notifyChar = null;
 let pollInterval = null;
 let reconnectTimer = null;
 let scanning = false;
+let consecutiveConnectFailures = 0;
 let connectionState = "disconnected";
 let lastStatus = null;
 let deviceInfo = { maxSpeed: 14, minSpeed: 1, maxIncline: 0, minIncline: 0 };
@@ -170,16 +176,62 @@ async function scan() {
 	scanning = true;
 	setConnectionState("scanning");
 
+	let found;
 	try {
-		const found = await findTreadmill();
+		found = await findTreadmill();
 		log("Found treadmill:", found.advertisement.localName || found.uuid);
-		await connectToPeripheral(found);
 	} catch (err) {
+		// Treadmill not present / Bluetooth unavailable — normal, just keep scanning.
+		// Don't count this toward the connect-failure restart threshold.
 		logError("Scan error:", err.message);
 		scanning = false;
 		setConnectionState("disconnected");
 		scheduleReconnect();
+		return;
 	}
+
+	try {
+		await connectToPeripheral(found);
+		consecutiveConnectFailures = 0;
+	} catch (err) {
+		consecutiveConnectFailures++;
+		logError(`Connect failed (${consecutiveConnectFailures}/${MAX_CONNECT_FAILURES}):`, err.message);
+		scanning = false;
+		setConnectionState("disconnected");
+		if (consecutiveConnectFailures >= MAX_CONNECT_FAILURES) {
+			// Treadmill is present but connectAsync keeps timing out — noble's
+			// CoreBluetooth stack is wedged and won't recover in-process.
+			restartSelf();
+		} else {
+			scheduleReconnect();
+		}
+	}
+}
+
+// Relaunch as a fresh process to recover from a wedged CoreBluetooth stack.
+// Launches via `open -n` so the new instance keeps the .app bundle's Bluetooth
+// entitlement (TCC), then exits so the fresh instance takes over the socket.
+function restartSelf() {
+	const appPath = path.join(PLUGIN_DIR, "ble-helper", "FitDeckBLE.app");
+	if (!fs.existsSync(appPath)) {
+		// Can't relaunch cleanly (e.g. dev without a built app) — keep looping
+		// rather than exiting into a state nothing can recover from.
+		logError("restartSelf: app bundle not found, falling back to reconnect:", appPath);
+		consecutiveConnectFailures = 0;
+		scheduleReconnect();
+		return;
+	}
+	log("Restarting helper process to clear wedged Bluetooth stack...");
+	try {
+		const child = spawn("open", ["-n", appPath], { detached: true, stdio: "ignore" });
+		child.on("error", (e) => logError("restartSelf spawn error:", e.message));
+		child.unref();
+	} catch (err) {
+		logError("restartSelf failed to spawn:", err.message);
+	}
+	// Exit promptly (before the new instance boots and binds the socket) so our
+	// exit-time socket cleanup can't clobber the successor's socket file.
+	setTimeout(() => process.exit(0), 250);
 }
 
 function findTreadmill() {

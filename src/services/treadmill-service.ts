@@ -42,24 +42,38 @@ export class TreadmillService extends EventEmitter {
 		if (this.socket || this.connecting) return;
 		this.connecting = true;
 
-		// On first connect, kill any stale helper from a previous plugin run and relaunch
-		if (!this.helperLaunched) {
-			await this.restartHelper();
-		}
+		try {
+			// On first connect, kill any stale helper from a previous plugin run and relaunch
+			if (!this.helperLaunched) {
+				await this.restartHelper();
+			}
 
-		// Try connecting to the socket with retries
+			// Try connecting to the socket with retries
+			if (await this.tryConnectLoop()) return;
+
+			// Exhausted retries with no socket — the helper is likely dead or its
+			// launch failed. Relaunch a fresh one and try once more so we always
+			// recover automatically instead of requiring a Stream Deck restart.
+			streamDeck.logger.warn("[FitDeck] No BLE helper socket after retries — relaunching helper");
+			await this.restartHelper();
+			await this.tryConnectLoop();
+		} finally {
+			this.connecting = false;
+		}
+	}
+
+	private async tryConnectLoop(): Promise<boolean> {
 		for (let i = 0; i < MAX_CONNECT_RETRIES; i++) {
 			try {
 				await this.connectSocket();
-				this.connecting = false;
 				// Ask helper to start scanning
 				this.send({ method: "scan" });
-				return;
+				return true;
 			} catch {
 				await new Promise((r) => setTimeout(r, CONNECT_RETRY_MS));
 			}
 		}
-		this.connecting = false;
+		return false;
 	}
 
 	private async restartHelper(): Promise<void> {
