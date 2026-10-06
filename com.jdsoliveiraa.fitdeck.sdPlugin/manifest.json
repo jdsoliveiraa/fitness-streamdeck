@@ -28,11 +28,13 @@
             "Name": "Start / Stop",
             "UUID": "com.jdsoliveiraa.fitdeck.start-stop",
             "Icon": "imgs/actions/start-stop/action",
-            "Tooltip": "Toggle treadmill on/off",
+            "Tooltip": "Tap to start, pause or resume — hold 2s to stop",
             "Controllers": ["Keypad"],
+            "DisableAutomaticStates": true,
             "States": [
                 { "Image": "imgs/actions/start-stop/start", "Name": "Start" },
-                { "Image": "imgs/actions/start-stop/stop", "Name": "Stop" }
+                { "Image": "imgs/actions/start-stop/pause", "Name": "Running" },
+                { "Image": "imgs/actions/start-stop/paused", "Name": "Paused" }
             ]
         },
         {
@@ -82,14 +84,14 @@
             "Name": "Speed Dial",
             "UUID": "com.jdsoliveiraa.fitdeck.speed-dial",
             "Icon": "imgs/actions/speed-dial/action",
-            "Tooltip": "Dial to adjust speed, push to start/stop",
+            "Tooltip": "Dial to adjust speed, push to start/pause/resume, hold to stop",
             "Controllers": ["Encoder"],
             "Encoder": {
                 "layout": "layouts/canvas-layout.json",
                 "TriggerDescription": {
                     "Rotate": "Adjust speed",
-                    "Push": "Start / Stop",
-                    "Touch": "Start / Stop"
+                    "Push": "Start / Pause / Resume (hold 2s: Stop)",
+                    "Touch": "Start / Pause / Resume"
                 }
             },
             "States": [
@@ -124,7 +126,8 @@
                 "layout": "layouts/canvas-layout.json",
                 "TriggerDescription": {
                     "Rotate": "Cycle metrics",
-                    "Push": "Pause / Resume"
+                    "Push": "Start / Pause / Resume (hold 2s: Stop)",
+                    "Touch": "Start / Pause / Resume"
                 }
             },
             "States": [

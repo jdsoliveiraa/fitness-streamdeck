@@ -1,5 +1,6 @@
-import { action, SingletonAction, type DialRotateEvent, type DialDownEvent, type TouchTapEvent, type WillAppearEvent, type WillDisappearEvent } from "@elgato/streamdeck";
+import { action, SingletonAction, type DialRotateEvent, type DialDownEvent, type DialUpEvent, type TouchTapEvent, type WillAppearEvent, type WillDisappearEvent } from "@elgato/streamdeck";
 import { treadmillService } from "../services/treadmill-service";
+import { tapControl, holdStop, PressHold } from "../util/controls";
 import { renderStatsView, renderSpeedFocus, renderOfflineView } from "../util/dial-renderer";
 import type { SpeedDialSettings, TreadmillStatus, ConnectionState } from "../types";
 
@@ -12,6 +13,7 @@ export class SpeedDialAction extends SingletonAction<SpeedDialSettings> {
 	private showingSpeedFocus = false;
 	private speedFocusTimer: ReturnType<typeof setTimeout> | null = null;
 	private lastKnownSpeed = 0;
+	private press = new PressHold();
 
 	private statusHandler = (status: TreadmillStatus) => {
 		const speedChanged = status.speed !== this.lastKnownSpeed;
@@ -73,7 +75,8 @@ export class SpeedDialAction extends SingletonAction<SpeedDialSettings> {
 		}
 	}
 
-	override async onWillDisappear(_ev: WillDisappearEvent<SpeedDialSettings>): Promise<void> {
+	override async onWillDisappear(ev: WillDisappearEvent<SpeedDialSettings>): Promise<void> {
+		this.press.cancel(ev.action.id);
 		if ([...this.actions].length === 0) {
 			treadmillService.off("status", this.statusHandler);
 			treadmillService.off("connection-change", this.connectionHandler);
@@ -94,22 +97,18 @@ export class SpeedDialAction extends SingletonAction<SpeedDialSettings> {
 		await treadmillService.setSpeed(newSpeed);
 	}
 
-	override async onDialDown(_ev: DialDownEvent<SpeedDialSettings>): Promise<void> {
+	override async onDialDown(ev: DialDownEvent<SpeedDialSettings>): Promise<void> {
 		if (!treadmillService.isConnected) return;
-		if (treadmillService.isRunning) {
-			await treadmillService.stop();
-		} else {
-			await treadmillService.start();
-		}
+		this.press.down(ev.action.id, () => holdStop());
+	}
+
+	override async onDialUp(ev: DialUpEvent<SpeedDialSettings>): Promise<void> {
+		if (this.press.up(ev.action.id)) await tapControl();
 	}
 
 	override async onTouchTap(_ev: TouchTapEvent<SpeedDialSettings>): Promise<void> {
 		if (!treadmillService.isConnected) return;
-		if (treadmillService.isRunning) {
-			await treadmillService.stop();
-		} else {
-			await treadmillService.start();
-		}
+		await tapControl();
 	}
 
 	private showSpeedFocus(status: TreadmillStatus): void {

@@ -59,7 +59,7 @@ export class WorkoutDialAction extends SingletonAction<WorkoutDialSettings> {
 	private progressHandler = (w: WorkoutProgress) => {
 		this.mode = "active";
 		const isGoal = !!w.plan.goalOnly;
-		this.setCanvas(renderWorkoutProgress(w.plan.name, w.percentComplete, progressSubtitle(w), false, isGoal));
+		this.setCanvas(renderWorkoutProgress(w.plan.name, w.percentComplete, progressSubtitle(w), false, isGoal, w.isPaused));
 	};
 
 	private completeHandler = (w: WorkoutProgress) => {
@@ -105,7 +105,7 @@ export class WorkoutDialAction extends SingletonAction<WorkoutDialSettings> {
 			this.mode = "active";
 			const w = workoutManager.progress;
 			const isGoal = !!w.plan.goalOnly;
-			this.setCanvas(renderWorkoutProgress(w.plan.name, w.percentComplete, progressSubtitle(w), w.isComplete, isGoal));
+			this.setCanvas(renderWorkoutProgress(w.plan.name, w.percentComplete, progressSubtitle(w), w.isComplete, isGoal, w.isPaused));
 		} else if (workoutManager.progress?.isComplete) {
 			// Show summary if we reappear while complete
 			this.mode = "complete";

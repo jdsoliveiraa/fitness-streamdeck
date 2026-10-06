@@ -65,7 +65,8 @@ export interface StatsViewData {
 
 export function renderStatsView(d: StatsViewData): string {
 	const pct = d.maxSpeed > 0 ? (d.speed / d.maxSpeed) * 100 : 0;
-	const stateColor = d.statusCode === 3 ? "#00cc66" : d.statusCode === 2 ? "#ffaa00" : "#555";
+	const isPaused = d.statusCode === 10;
+	const stateColor = d.statusCode === 3 ? "#00cc66" : d.statusCode === 2 || isPaused ? "#ffaa00" : "#555";
 
 	return svg(
 		// Background
@@ -78,6 +79,7 @@ export function renderStatsView(d: StatsViewData): string {
 
 		// Status dot
 		`<circle cx="190" cy="12" r="4" fill="${stateColor}"/>` +
+		(isPaused ? `<text x="12" y="80" fill="#ffaa00" font-family="Arial,sans-serif" font-size="12" font-weight="700">PAUSED</text>` : "") +
 
 		// Speed mini-bar under speed value
 		progressBar(12, 50, 80, 6, pct, "g1") +
@@ -249,7 +251,7 @@ export function renderWorkoutBrowser(name: string, description: string): string 
 
 // ── Workout Dial: Active Progress ───────────────────────────────────────
 
-export function renderWorkoutProgress(name: string, pct: number, subtitle: string, isComplete: boolean, isGoal = false): string {
+export function renderWorkoutProgress(name: string, pct: number, subtitle: string, isComplete: boolean, isGoal = false, isPaused = false): string {
 	const gradient = isComplete ? "g1" : isGoal ? "g3" : "g2";
 	const valueText = isComplete ? "DONE!" : `${Math.round(pct)}%`;
 	const valueColor = isComplete ? "#00cc66" : "#fff";
@@ -268,6 +270,8 @@ export function renderWorkoutProgress(name: string, pct: number, subtitle: strin
 		// Subtitle
 		`<text x="100" y="84" text-anchor="middle" fill="#888" font-family="Arial,sans-serif" font-size="10">${esc(subtitle)}</text>` +
 
-		`<text x="100" y="98" text-anchor="middle" fill="#444" font-family="Arial,sans-serif" font-size="8">${isComplete ? "PUSH TO RESET" : "PUSH TO STOP"}</text>`
+		(isPaused
+			? `<text x="100" y="98" text-anchor="middle" fill="#ffaa00" font-family="Arial,sans-serif" font-size="9" font-weight="700">PAUSED</text>`
+			: `<text x="100" y="98" text-anchor="middle" fill="#444" font-family="Arial,sans-serif" font-size="8">${isComplete ? "PUSH TO RESET" : "PUSH TO STOP"}</text>`)
 	);
 }

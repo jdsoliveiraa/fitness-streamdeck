@@ -12,6 +12,7 @@ const IMGS = "com.jdsoliveiraa.fitdeck.sdPlugin/imgs";
 const PATHS = {
 	play: `<polygon points="6 3 20 12 6 21 6 3"/>`,
 	stop: `<rect width="14" height="14" x="5" y="5" rx="1"/>`,
+	pause: `<rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/>`,
 	playCircle: `<circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/>`,
 	chevronUp: `<path d="m18 15-6-6-6 6"/>`,
 	chevronDown: `<path d="m6 9 6 6 6-6"/>`,
@@ -85,11 +86,13 @@ async function main() {
 	// --- Start / Stop ---
 	const startStopDir = path.join(IMGS, "actions/start-stop");
 	await actionIcon(startStopDir, PATHS.playCircle);
-	// Key states: filled play triangle (green tint) and filled stop square (red tint)
+	// Key states: idle (play), running (pause — tap pauses, hold stops), paused (amber play — tap resumes)
 	await writePng(path.join(startStopDir, "start.png"), filledIconSvg(72, PATHS.play));
 	await writePng(path.join(startStopDir, "start@2x.png"), filledIconSvg(144, PATHS.play));
-	await writePng(path.join(startStopDir, "stop.png"), filledIconSvg(72, PATHS.stop));
-	await writePng(path.join(startStopDir, "stop@2x.png"), filledIconSvg(144, PATHS.stop));
+	await writePng(path.join(startStopDir, "pause.png"), filledIconSvg(72, PATHS.pause));
+	await writePng(path.join(startStopDir, "pause@2x.png"), filledIconSvg(144, PATHS.pause));
+	await writePng(path.join(startStopDir, "paused.png"), filledIconSvg(72, PATHS.play, { fill: "#FFAA00" }));
+	await writePng(path.join(startStopDir, "paused@2x.png"), filledIconSvg(144, PATHS.play, { fill: "#FFAA00" }));
 
 	// --- Speed Up ---
 	await actionIcon(path.join(IMGS, "actions/speed-up"), PATHS.chevronUp);

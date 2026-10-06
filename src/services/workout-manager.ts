@@ -104,13 +104,15 @@ export class WorkoutManager extends EventEmitter {
 			lastSessionSec: 0,
 			isComplete: false,
 			isAborted: false,
+			isPaused: false,
 		};
 
 		this.emit("progress", this.activeWorkout);
 
-		// Start treadmill if not already running
+		// Start treadmill if not already running. Plans set their own speed, so don't
+		// restore a pre-pause speed over it.
 		if (initial.statusCode !== 3) {
-			await treadmillService.start();
+			await treadmillService.start({ restoreSpeed: !!plan.goalOnly });
 			try {
 				await treadmillService.waitForStatus((s) => s.statusCode === 3);
 			} catch {
@@ -149,10 +151,25 @@ export class WorkoutManager extends EventEmitter {
 	private onStatus(status: TreadmillStatus): void {
 		if (!this.activeWorkout || this.activeWorkout.isComplete || this.activeWorkout.isAborted) return;
 
+		const w = this.activeWorkout;
+
+		// A real stop (not an emulated pause, which reports PAUSED) ends the workout
+		if (status.statusCode === 0 || status.statusCode === 1 || status.statusCode === 4) {
+			w.isAborted = true;
+			this.cleanup();
+			this.emit("aborted", w);
+			return;
+		}
+
+		const isPaused = status.statusCode === 10;
+		if (isPaused !== w.isPaused) {
+			w.isPaused = isPaused;
+			this.emit("progress", w);
+		}
+
 		// Only track progress while RUNNING
 		if (status.statusCode !== 3) return;
 
-		const w = this.activeWorkout;
 		const sessionCal = (status.calories ?? 0) - w.initialCalories;
 		const sessionDist = (status.distance ?? 0) - w.initialDistance;
 		const sessionSec = (status.elapsedSeconds ?? 0) - w.initialSeconds;

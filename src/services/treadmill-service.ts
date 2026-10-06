@@ -18,6 +18,20 @@ const SOCKET_PATH = "/tmp/fitdeck-ble.sock";
 const CONNECT_RETRY_MS = 2000;
 const MAX_CONNECT_RETRIES = 10;
 
+// The treadmill has no native pause (FitShow 0x06 is ignored, FTMS pause acts as stop),
+// so pause is emulated: stop the belt, carry the session counters, restart on resume.
+const RESUME_SPEED_DELAY_MS = 1000;
+// If the belt is still RUNNING this long after a pause, the stop was lost — drop the pause.
+const PAUSE_CONFIRM_MS = 5000;
+
+type Counters = Pick<TreadmillStatus, "elapsedSeconds" | "distance" | "calories" | "steps">;
+const ZERO_COUNTERS: Counters = { elapsedSeconds: 0, distance: 0, calories: 0, steps: 0 };
+const ACTIVE_CODES = [2, 3];
+
+function countersOf(s: TreadmillStatus): Counters {
+	return { elapsedSeconds: s.elapsedSeconds, distance: s.distance, calories: s.calories, steps: s.steps };
+}
+
 export interface TreadmillServiceEvents {
 	status: (status: TreadmillStatus) => void;
 	"connection-change": (state: ConnectionState) => void;
@@ -33,6 +47,16 @@ export class TreadmillService extends EventEmitter {
 	private pendingRequests = new Map<number, { resolve: (v: any) => void; reject: (e: Error) => void }>();
 
 	connectionState: ConnectionState = "disconnected";
+	/** Treadmill status as reported by the helper (counters reset on every stop). */
+	private rawStatus: TreadmillStatus | null = null;
+	/** Counters carried over from treadmill runs before the last emulated pause. */
+	private carried: Counters = { ...ZERO_COUNTERS };
+	/** Latest counters of the current treadmill run. */
+	private segment: Counters = { ...ZERO_COUNTERS };
+	private paused = false;
+	private pausedAt = 0;
+	private resumeSpeed: number | null = null;
+	private restoreSpeedPending = false;
 	lastStatus: TreadmillStatus | null = null;
 	deviceInfo: TreadmillDeviceInfo = { maxSpeed: 14, minSpeed: 1, maxIncline: 0, minIncline: 0 };
 
@@ -192,8 +216,7 @@ export class TreadmillService extends EventEmitter {
 		if (msg.event) {
 			switch (msg.event) {
 				case "status":
-					this.lastStatus = msg.data;
-					this.emit("status", msg.data);
+					this.onRawStatus(msg.data);
 					break;
 				case "connection-change":
 					this.setConnectionState(msg.data.state);
@@ -208,6 +231,67 @@ export class TreadmillService extends EventEmitter {
 					break;
 			}
 		}
+	}
+
+	// --- Session (emulated pause) ---
+
+	private onRawStatus(raw: TreadmillStatus): void {
+		const prevCode = this.rawStatus?.statusCode;
+		this.rawStatus = raw;
+		const code = raw.statusCode;
+		const startedNow = ACTIVE_CODES.includes(code) && (prevCode === undefined || !ACTIVE_CODES.includes(prevCode));
+
+		if (this.paused && startedNow) {
+			// Resumed — from our resume() or the treadmill's own remote
+			this.paused = false;
+			this.restoreSpeedPending = this.resumeSpeed !== null;
+		} else if (this.paused && code === 3 && Date.now() - this.pausedAt > PAUSE_CONFIRM_MS) {
+			streamDeck.logger.warn("[FitDeck] Treadmill still running after pause — dropping pause");
+			this.paused = false;
+			this.resumeSpeed = null;
+		}
+
+		if (code === 0) {
+			// IDLE: the treadmill has reset its counters. Keep them only across an emulated pause.
+			if (prevCode !== undefined && prevCode !== 0) {
+				this.carried = this.paused ? this.addCounters(this.carried, this.segment) : { ...ZERO_COUNTERS };
+			}
+			this.segment = { ...ZERO_COUNTERS };
+		} else {
+			this.segment = countersOf(raw);
+		}
+
+		if (code === 3 && this.restoreSpeedPending) {
+			this.restoreSpeedPending = false;
+			const speed = this.resumeSpeed;
+			this.resumeSpeed = null;
+			if (speed !== null && speed > raw.speed) {
+				setTimeout(() => { if (this.isRunning) this.setSpeed(speed); }, RESUME_SPEED_DELAY_MS);
+			}
+		}
+
+		this.emitSessionStatus();
+	}
+
+	private addCounters(a: Counters, b: Counters): Counters {
+		return {
+			elapsedSeconds: a.elapsedSeconds + b.elapsedSeconds,
+			distance: Math.round((a.distance + b.distance) * 1000) / 1000,
+			calories: Math.round((a.calories + b.calories) * 10) / 10,
+			steps: a.steps + b.steps,
+		};
+	}
+
+	private emitSessionStatus(): void {
+		if (!this.rawStatus) return;
+		const status: TreadmillStatus = { ...this.rawStatus, ...this.addCounters(this.carried, this.segment) };
+		if (this.paused) {
+			status.status = "PAUSED";
+			status.statusCode = 10;
+			status.speed = 0;
+		}
+		this.lastStatus = status;
+		this.emit("status", status);
 	}
 
 	private setConnectionState(state: ConnectionState): void {
@@ -250,6 +334,10 @@ export class TreadmillService extends EventEmitter {
 		return this.lastStatus?.statusCode === 3;
 	}
 
+	get isPaused(): boolean {
+		return this.paused;
+	}
+
 	get currentSpeed(): number {
 		return this.lastStatus?.speed ?? 0;
 	}
@@ -262,8 +350,10 @@ export class TreadmillService extends EventEmitter {
 		return this.deviceInfo.minSpeed;
 	}
 
-	async start(mode = 0): Promise<void> {
-		this.send({ method: "start", mode });
+	/** Start the belt. From an emulated pause this resumes, restoring the pre-pause speed unless told not to. */
+	async start(opts: { restoreSpeed?: boolean } = {}): Promise<void> {
+		if (opts.restoreSpeed === false) this.resumeSpeed = null;
+		this.send({ method: "start" });
 	}
 
 	async setSpeed(speedKmh: number): Promise<void> {
@@ -274,12 +364,30 @@ export class TreadmillService extends EventEmitter {
 		this.send({ method: "setSpeedAndIncline", speed: speedKmh, incline });
 	}
 
+	/** End the session. From an emulated pause this discards the carried counters. */
 	async stop(): Promise<void> {
+		if (this.paused) {
+			this.paused = false;
+			this.resumeSpeed = null;
+			this.carried = { ...ZERO_COUNTERS };
+			if (this.rawStatus?.statusCode === 0) this.segment = { ...ZERO_COUNTERS };
+			this.emitSessionStatus();
+		}
+		if (this.rawStatus?.statusCode !== 0) this.send({ method: "stop" });
+	}
+
+	/** Emulated pause: remember speed and counters, then stop the belt. */
+	async pause(): Promise<void> {
+		if (this.paused || !this.isRunning) return;
+		this.paused = true;
+		this.pausedAt = Date.now();
+		this.resumeSpeed = this.rawStatus?.speed ?? null;
+		this.emitSessionStatus();
 		this.send({ method: "stop" });
 	}
 
-	async pause(): Promise<void> {
-		this.send({ method: "pause" });
+	async resume(): Promise<void> {
+		if (this.paused) await this.start();
 	}
 
 	async disconnect(): Promise<void> {

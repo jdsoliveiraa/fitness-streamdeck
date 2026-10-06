@@ -25,7 +25,8 @@ export function renderStatusKey(status: TreadmillStatus | null, connectionState:
 	const dist = status.distance < 1 ? `${(status.distance * 1000).toFixed(0)}m` : `${status.distance.toFixed(2)}km`;
 	const time = formatTime(status.elapsedSeconds);
 	const cal = status.calories.toFixed(1);
-	const stateColor = status.statusCode === 3 ? "#00cc66" : status.statusCode === 2 ? "#ffaa00" : "#666666";
+	const isPaused = status.statusCode === 10;
+	const stateColor = status.statusCode === 3 ? "#00cc66" : status.statusCode === 2 || isPaused ? "#ffaa00" : "#666666";
 
 	return `data:image/svg+xml,${encodeURIComponent(`
 		<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144">
@@ -37,7 +38,7 @@ export function renderStatusKey(status: TreadmillStatus | null, connectionState:
 			<text x="36" y="92" text-anchor="middle" fill="#aaa" font-family="Arial" font-size="12">${escapeXml(time)}</text>
 			<text x="108" y="92" text-anchor="middle" fill="#aaa" font-family="Arial" font-size="12">${escapeXml(dist)}</text>
 			<text x="72" y="116" text-anchor="middle" fill="#ff9900" font-family="Arial" font-size="14" font-weight="bold">${cal} cal</text>
-			<text x="72" y="136" text-anchor="middle" fill="#555" font-family="Arial" font-size="9">${escapeXml(status.status)}</text>
+			<text x="72" y="136" text-anchor="middle" fill="${isPaused ? "#ffaa00" : "#555"}" font-family="Arial" font-size="9" font-weight="${isPaused ? "bold" : "normal"}">${escapeXml(status.status)}</text>
 		</svg>
 	`)}`;
 }
@@ -48,6 +49,7 @@ export function renderWorkoutKey(
 	progressLabel: string,
 	isActive: boolean,
 	isComplete: boolean,
+	isPaused = false,
 ): string {
 	const barWidth = Math.round((percentComplete / 100) * 104);
 	const barColor = isComplete ? "#00cc66" : "#ff9900";
@@ -60,7 +62,7 @@ export function renderWorkoutKey(
 			<rect x="20" y="54" width="104" height="10" rx="5" fill="#333"/>
 			<rect x="20" y="54" width="${barWidth}" height="10" rx="5" fill="${barColor}"/>
 			<text x="72" y="84" text-anchor="middle" fill="#aaa" font-family="Arial" font-size="11">${escapeXml(progressLabel)}</text>
-			<text x="72" y="110" text-anchor="middle" fill="${isActive ? '#00cc66' : '#666'}" font-family="Arial" font-size="10">${isActive ? 'TAP TO STOP' : 'TAP TO START'}</text>
+			<text x="72" y="110" text-anchor="middle" fill="${isPaused ? '#ffaa00' : isActive ? '#00cc66' : '#666'}" font-family="Arial" font-size="10" font-weight="${isPaused ? 'bold' : 'normal'}">${isPaused ? 'PAUSED' : isActive ? 'TAP TO STOP' : 'TAP TO START'}</text>
 		</svg>
 	`)}`;
 }

@@ -7,13 +7,14 @@ Built for [Stream Deck Plus](https://www.elgato.com/stream-deck-plus) (keys + di
 ## Features
 
 **Keys**
-- Start / Stop treadmill
+- Start / Stop — tap to start, pause, or resume; hold 2s to stop
 - Speed Up / Speed Down (configurable step size)
 - Status Display with live metrics (speed, distance, time, calories)
 - Workout key with progress tracking
 
 **Dials (Stream Deck Plus)**
-- Speed Dial — rotate to adjust speed, push to start/stop, touch display shows live stats with auto-focus on speed changes
+- Speed Dial — rotate to adjust speed, push to start/pause/resume (hold 2s to stop), touch display shows live stats with auto-focus on speed changes
+- Status Dial — live metrics, push to start/pause/resume (hold 2s to stop)
 - Workout Dial — browse and start workout plans, track progress with live bar
 - Goal Mode — set a distance, time, or calorie target directly from the dial and track progress without a preset speed
 
@@ -22,6 +23,11 @@ Built for [Stream Deck Plus](https://www.elgato.com/stream-deck-plus) (keys + di
 - Custom plans via the property inspector (goal type, target, speed, incline)
 - Goal-only mode: set a target, auto-start the treadmill, control speed manually
 - Auto-stop when the goal is reached, with a completion summary screen
+- Pause keeps the workout and session totals; stopping the treadmill ends the workout
+
+**Pause / Resume**
+
+FITFIU treadmills have no native pause over BLE (the FitShow pause command is ignored and the FTMS pause acts as a stop), so FitDeck emulates it: pausing stops the belt and keeps the session's time, distance, and calories; resuming restarts the belt, restores the previous speed, and keeps counting from where you left off. Starting the belt from the treadmill's remote while paused also resumes.
 
 ## Requirements
 

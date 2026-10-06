@@ -1,5 +1,6 @@
-import { action, SingletonAction, type DialRotateEvent, type DialDownEvent, type WillAppearEvent, type WillDisappearEvent } from "@elgato/streamdeck";
+import { action, SingletonAction, type DialRotateEvent, type DialDownEvent, type DialUpEvent, type TouchTapEvent, type WillAppearEvent, type WillDisappearEvent } from "@elgato/streamdeck";
 import { treadmillService } from "../services/treadmill-service";
+import { tapControl, holdStop, PressHold } from "../util/controls";
 import type { StatusDialSettings, TreadmillStatus, ConnectionState } from "../types";
 
 function formatTime(seconds: number): string {
@@ -15,6 +16,7 @@ function formatDist(km: number): string {
 @action({ UUID: "com.jdsoliveiraa.fitdeck.status-dial" })
 export class StatusDialAction extends SingletonAction<StatusDialSettings> {
 	private listening = false;
+	private press = new PressHold();
 
 	private statusHandler = (status: TreadmillStatus) => {
 		this.updateFeedback(status);
@@ -58,7 +60,8 @@ export class StatusDialAction extends SingletonAction<StatusDialSettings> {
 		}
 	}
 
-	override async onWillDisappear(_ev: WillDisappearEvent<StatusDialSettings>): Promise<void> {
+	override async onWillDisappear(ev: WillDisappearEvent<StatusDialSettings>): Promise<void> {
+		this.press.cancel(ev.action.id);
 		if ([...this.actions].length === 0) {
 			treadmillService.off("status", this.statusHandler);
 			treadmillService.off("connection-change", this.connectionHandler);
@@ -70,20 +73,25 @@ export class StatusDialAction extends SingletonAction<StatusDialSettings> {
 		// Could cycle views in a future version
 	}
 
-	override async onDialDown(_ev: DialDownEvent<StatusDialSettings>): Promise<void> {
+	override async onDialDown(ev: DialDownEvent<StatusDialSettings>): Promise<void> {
 		if (!treadmillService.isConnected) return;
-		if (treadmillService.lastStatus?.statusCode === 3) {
-			await treadmillService.pause();
-		} else if (treadmillService.lastStatus?.statusCode === 10) {
-			await treadmillService.start();
-		}
+		this.press.down(ev.action.id, () => holdStop());
+	}
+
+	override async onDialUp(ev: DialUpEvent<StatusDialSettings>): Promise<void> {
+		if (this.press.up(ev.action.id)) await tapControl();
+	}
+
+	override async onTouchTap(_ev: TouchTapEvent<StatusDialSettings>): Promise<void> {
+		if (!treadmillService.isConnected) return;
+		await tapControl();
 	}
 
 	private updateFeedback(status: TreadmillStatus): void {
 		for (const action of this.actions) {
 			if (action.isDial()) {
 				action.setFeedback({
-					label1: "SPEED",
+					label1: status.statusCode === 10 ? "PAUSED" : "SPEED",
 					value1: `${status.speed.toFixed(1)}`,
 					label2: "DIST",
 					value2: formatDist(status.distance),

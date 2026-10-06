@@ -52,6 +52,7 @@ export interface WorkoutProgress {
 	lastSessionSec: number;
 	isComplete: boolean;
 	isAborted: boolean;
+	isPaused: boolean;
 }
 
 // --- Action Settings ---
