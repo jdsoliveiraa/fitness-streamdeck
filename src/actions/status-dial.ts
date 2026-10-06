@@ -1,41 +1,22 @@
 import { action, SingletonAction, type DialRotateEvent, type DialDownEvent, type DialUpEvent, type TouchTapEvent, type WillAppearEvent, type WillDisappearEvent } from "@elgato/streamdeck";
-import { treadmillService } from "../services/treadmill-service";
-import { tapControl, holdStop, PressHold } from "../util/controls";
+import { treadmillService, pauseStateOf } from "../services/treadmill-service";
+import { tapControl, DialHold } from "../util/controls";
+import { renderStatusGrid, renderOfflineView } from "../util/dial-renderer";
 import type { StatusDialSettings, TreadmillStatus, ConnectionState } from "../types";
 
-function formatTime(seconds: number): string {
-	const m = Math.floor(seconds / 60).toString().padStart(2, "0");
-	const s = (seconds % 60).toString().padStart(2, "0");
-	return `${m}:${s}`;
-}
-
-function formatDist(km: number): string {
-	return km < 1 ? `${(km * 1000).toFixed(0)}m` : `${km.toFixed(2)}km`;
-}
+const CANVAS_LAYOUT = "layouts/canvas-layout.json";
 
 @action({ UUID: "com.jdsoliveiraa.fitdeck.status-dial" })
 export class StatusDialAction extends SingletonAction<StatusDialSettings> {
 	private listening = false;
-	private press = new PressHold();
+	private hold = new DialHold(() => this.redraw());
 
-	private statusHandler = (status: TreadmillStatus) => {
-		this.updateFeedback(status);
+	private statusHandler = (_status: TreadmillStatus) => {
+		this.redraw();
 	};
 
-	private connectionHandler = (state: ConnectionState) => {
-		if (state !== "connected") {
-			const label = state === "scanning" ? "Scanning..." : "Offline";
-			for (const action of this.actions) {
-				if (action.isDial()) {
-					action.setFeedback({
-						label1: "STATUS", value1: label,
-						label2: "", value2: "",
-						label3: "", value3: "",
-						label4: "", value4: "",
-					});
-				}
-			}
-		}
+	private connectionHandler = (_state: ConnectionState) => {
+		this.redraw();
 	};
 
 	override async onWillAppear(ev: WillAppearEvent<StatusDialSettings>): Promise<void> {
@@ -46,22 +27,14 @@ export class StatusDialAction extends SingletonAction<StatusDialSettings> {
 		}
 		treadmillService.ensureConnected();
 
-		if (treadmillService.lastStatus) {
-			this.updateFeedback(treadmillService.lastStatus);
-		} else {
-			if (ev.action.isDial()) {
-				ev.action.setFeedback({
-					label1: "STATUS", value1: "Waiting...",
-					label2: "", value2: "",
-					label3: "", value3: "",
-					label4: "", value4: "",
-				});
-			}
+		if (ev.action.isDial()) {
+			await ev.action.setFeedbackLayout(CANVAS_LAYOUT);
 		}
+		this.redraw();
 	}
 
 	override async onWillDisappear(ev: WillDisappearEvent<StatusDialSettings>): Promise<void> {
-		this.press.cancel(ev.action.id);
+		this.hold.cancel(ev.action.id);
 		if ([...this.actions].length === 0) {
 			treadmillService.off("status", this.statusHandler);
 			treadmillService.off("connection-change", this.connectionHandler);
@@ -75,11 +48,11 @@ export class StatusDialAction extends SingletonAction<StatusDialSettings> {
 
 	override async onDialDown(ev: DialDownEvent<StatusDialSettings>): Promise<void> {
 		if (!treadmillService.isConnected) return;
-		this.press.down(ev.action.id, () => holdStop());
+		this.hold.down(ev.action);
 	}
 
 	override async onDialUp(ev: DialUpEvent<StatusDialSettings>): Promise<void> {
-		if (this.press.up(ev.action.id)) await tapControl();
+		if (this.hold.up(ev.action.id)) await tapControl();
 	}
 
 	override async onTouchTap(_ev: TouchTapEvent<StatusDialSettings>): Promise<void> {
@@ -87,19 +60,27 @@ export class StatusDialAction extends SingletonAction<StatusDialSettings> {
 		await tapControl();
 	}
 
-	private updateFeedback(status: TreadmillStatus): void {
+	private redraw(): void {
+		const status = treadmillService.lastStatus;
+		let canvas: string;
+		if (treadmillService.connectionState !== "connected") {
+			canvas = renderOfflineView(treadmillService.connectionState === "scanning" ? "Scanning..." : "Offline");
+		} else if (!status) {
+			canvas = renderOfflineView("Waiting...");
+		} else {
+			canvas = renderStatusGrid({
+				speed: status.speed,
+				distance: status.distance,
+				elapsedSeconds: status.elapsedSeconds,
+				calories: status.calories,
+				status: status.status,
+				statusCode: status.statusCode,
+				pauseState: pauseStateOf(status),
+			});
+		}
 		for (const action of this.actions) {
-			if (action.isDial()) {
-				action.setFeedback({
-					label1: status.statusCode === 10 ? "PAUSED" : "SPEED",
-					value1: `${status.speed.toFixed(1)}`,
-					label2: "DIST",
-					value2: formatDist(status.distance),
-					label3: "TIME",
-					value3: formatTime(status.elapsedSeconds),
-					label4: "CAL",
-					value4: `${status.calories.toFixed(1)}`,
-				});
+			if (action.isDial() && !this.hold.isOverlaid(action.id)) {
+				action.setFeedback({ canvas });
 			}
 		}
 	}

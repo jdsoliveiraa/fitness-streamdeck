@@ -15,7 +15,7 @@ Built for [Stream Deck Plus](https://www.elgato.com/stream-deck-plus) (keys + di
 **Dials (Stream Deck Plus)**
 - Speed Dial — rotate to adjust speed, push to start/pause/resume (hold 2s to stop), touch display shows live stats with auto-focus on speed changes
 - Status Dial — live metrics, push to start/pause/resume (hold 2s to stop)
-- Workout Dial — browse and start workout plans, track progress with live bar
+- Workout Dial — browse and start workout plans, track progress with live bar; during a workout push to pause/resume (hold 2s to stop)
 - Goal Mode — set a distance, time, or calorie target directly from the dial and track progress without a preset speed
 
 **Workouts**

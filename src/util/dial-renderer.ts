@@ -1,6 +1,8 @@
 /**
  * SVG renderers for Stream Deck Plus encoder touch displays (200×100).
  */
+import type { PauseState } from "../types";
+import { pauseLabel, PAUSE_COLOR, STOP_COLOR } from "./pause-label";
 
 function esc(str: string): string {
 	return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -61,12 +63,12 @@ export interface StatsViewData {
 	calories: number;
 	maxSpeed: number;
 	statusCode: number;
+	pauseState?: PauseState | null;
 }
 
 export function renderStatsView(d: StatsViewData): string {
 	const pct = d.maxSpeed > 0 ? (d.speed / d.maxSpeed) * 100 : 0;
-	const isPaused = d.statusCode === 10;
-	const stateColor = d.statusCode === 3 ? "#00cc66" : d.statusCode === 2 || isPaused ? "#ffaa00" : "#555";
+	const stateColor = d.pauseState ? PAUSE_COLOR : d.statusCode === 3 ? "#00cc66" : d.statusCode === 2 ? "#ffaa00" : "#555";
 
 	return svg(
 		// Background
@@ -79,7 +81,7 @@ export function renderStatsView(d: StatsViewData): string {
 
 		// Status dot
 		`<circle cx="190" cy="12" r="4" fill="${stateColor}"/>` +
-		(isPaused ? `<text x="12" y="80" fill="#ffaa00" font-family="Arial,sans-serif" font-size="12" font-weight="700">PAUSED</text>` : "") +
+		(d.pauseState ? `<text x="12" y="80" fill="${PAUSE_COLOR}" font-family="Arial,sans-serif" font-size="12" font-weight="700">${pauseLabel(d.pauseState)}</text>` : "") +
 
 		// Speed mini-bar under speed value
 		progressBar(12, 50, 80, 6, pct, "g1") +
@@ -251,7 +253,7 @@ export function renderWorkoutBrowser(name: string, description: string): string 
 
 // ── Workout Dial: Active Progress ───────────────────────────────────────
 
-export function renderWorkoutProgress(name: string, pct: number, subtitle: string, isComplete: boolean, isGoal = false, isPaused = false): string {
+export function renderWorkoutProgress(name: string, pct: number, subtitle: string, isComplete: boolean, isGoal = false, pauseState: PauseState | null = null): string {
 	const gradient = isComplete ? "g1" : isGoal ? "g3" : "g2";
 	const valueText = isComplete ? "DONE!" : `${Math.round(pct)}%`;
 	const valueColor = isComplete ? "#00cc66" : "#fff";
@@ -270,8 +272,61 @@ export function renderWorkoutProgress(name: string, pct: number, subtitle: strin
 		// Subtitle
 		`<text x="100" y="84" text-anchor="middle" fill="#888" font-family="Arial,sans-serif" font-size="10">${esc(subtitle)}</text>` +
 
-		(isPaused
-			? `<text x="100" y="98" text-anchor="middle" fill="#ffaa00" font-family="Arial,sans-serif" font-size="9" font-weight="700">PAUSED</text>`
-			: `<text x="100" y="98" text-anchor="middle" fill="#444" font-family="Arial,sans-serif" font-size="8">${isComplete ? "PUSH TO RESET" : "PUSH TO STOP"}</text>`)
+		(pauseState
+			? `<text x="100" y="98" text-anchor="middle" fill="${PAUSE_COLOR}" font-family="Arial,sans-serif" font-size="9" font-weight="700">${pauseLabel(pauseState)}</text>`
+			: `<text x="100" y="98" text-anchor="middle" fill="#444" font-family="Arial,sans-serif" font-size="8">${isComplete ? "PUSH TO RESET" : "PUSH: PAUSE \u00B7 HOLD: STOP"}</text>`)
+	);
+}
+
+// ── Status Dial: Metrics Grid ───────────────────────────────────────────
+
+export interface StatusGridData {
+	speed: number;
+	distance: number;
+	elapsedSeconds: number;
+	calories: number;
+	status: string;
+	statusCode: number;
+	pauseState: PauseState | null;
+}
+
+export function renderStatusGrid(d: StatusGridData): string {
+	const stateColor = d.pauseState ? PAUSE_COLOR : d.statusCode === 3 ? "#00cc66" : d.statusCode === 2 ? "#ffaa00" : "#555";
+	const header = d.pauseState ? pauseLabel(d.pauseState) : d.status;
+	const cell = (x: number, y: number, label: string, value: string, color = "#ccc") =>
+		`<text x="${x}" y="${y}" fill="#777" font-family="Arial,sans-serif" font-size="8" font-weight="600">${label}</text>` +
+		`<text x="${x}" y="${y + 17}" fill="${color}" font-family="Arial,sans-serif" font-size="16" font-weight="700">${esc(value)}</text>`;
+
+	return svg(
+		`<rect width="200" height="100" fill="#0d0d1a" rx="0"/>` +
+		`<circle cx="12" cy="10" r="3.5" fill="${stateColor}"/>` +
+		`<text x="20" y="13" fill="${d.pauseState ? PAUSE_COLOR : "#666"}" font-family="Arial,sans-serif" font-size="9" font-weight="700">${esc(header)}</text>` +
+		cell(12, 32, "SPEED", d.speed.toFixed(1), "#fff") +
+		cell(108, 32, "DIST", formatDist(d.distance)) +
+		cell(12, 70, "TIME", formatTime(d.elapsedSeconds)) +
+		cell(108, 70, "CAL", d.calories.toFixed(1), "#ff9900") +
+		`<line x1="100" y1="24" x2="100" y2="94" stroke="#222" stroke-width="1"/>`
+	);
+}
+
+// ── All Dials: Hold-to-Stop Feedback ────────────────────────────────────
+
+export function renderHoldToStop(pct: number): string {
+	const w = Math.round((Math.min(pct, 100) / 100) * 168);
+	return svg(
+		`<rect width="200" height="100" fill="#0d0d1a" rx="0"/>` +
+		`<rect x="88" y="14" width="24" height="24" rx="3" fill="${STOP_COLOR}"/>` +
+		`<text x="100" y="60" text-anchor="middle" fill="#fff" font-family="Arial,sans-serif" font-size="13" font-weight="700">HOLD TO STOP</text>` +
+		`<rect x="16" y="72" width="168" height="10" rx="5" fill="#1a1a2e" stroke="#333" stroke-width="1"/>` +
+		(w > 0 ? `<rect x="16" y="72" width="${Math.max(w, 10)}" height="10" rx="5" fill="${STOP_COLOR}"/>` : "")
+	);
+}
+
+export function renderStopping(): string {
+	return svg(
+		`<rect width="200" height="100" fill="#0d0d1a" rx="0"/>` +
+		`<circle cx="100" cy="36" r="16" fill="none" stroke="${STOP_COLOR}" stroke-width="3"/>` +
+		`<path d="M92 36 l6 6 l11 -12" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>` +
+		`<text x="100" y="78" text-anchor="middle" fill="#fff" font-family="Arial,sans-serif" font-size="14" font-weight="700">STOPPING</text>`
 	);
 }

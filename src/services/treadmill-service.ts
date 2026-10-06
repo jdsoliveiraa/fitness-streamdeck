@@ -12,7 +12,7 @@ import { existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import streamDeck from "@elgato/streamdeck";
-import type { TreadmillStatus, TreadmillDeviceInfo, ConnectionState } from "../types";
+import type { TreadmillStatus, TreadmillDeviceInfo, ConnectionState, PauseState } from "../types";
 
 const SOCKET_PATH = "/tmp/fitdeck-ble.sock";
 const CONNECT_RETRY_MS = 2000;
@@ -27,6 +27,15 @@ const PAUSE_CONFIRM_MS = 5000;
 type Counters = Pick<TreadmillStatus, "elapsedSeconds" | "distance" | "calories" | "steps">;
 const ZERO_COUNTERS: Counters = { elapsedSeconds: 0, distance: 0, calories: 0, steps: 0 };
 const ACTIVE_CODES = [2, 3];
+
+/** Pause phase of a session status, for UI labels. */
+export function pauseStateOf(status: TreadmillStatus | null | undefined): PauseState | null {
+	if (!status) return null;
+	if (status.status === "PAUSING") return "pausing";
+	if (status.statusCode === 10) return "paused";
+	if (status.status === "RESUMING") return "resuming";
+	return null;
+}
 
 function countersOf(s: TreadmillStatus): Counters {
 	return { elapsedSeconds: s.elapsedSeconds, distance: s.distance, calories: s.calories, steps: s.steps };
@@ -54,6 +63,7 @@ export class TreadmillService extends EventEmitter {
 	/** Latest counters of the current treadmill run. */
 	private segment: Counters = { ...ZERO_COUNTERS };
 	private paused = false;
+	private resuming = false;
 	private pausedAt = 0;
 	private resumeSpeed: number | null = null;
 	private restoreSpeedPending = false;
@@ -244,12 +254,15 @@ export class TreadmillService extends EventEmitter {
 		if (this.paused && startedNow) {
 			// Resumed — from our resume() or the treadmill's own remote
 			this.paused = false;
+			this.resuming = true;
 			this.restoreSpeedPending = this.resumeSpeed !== null;
 		} else if (this.paused && code === 3 && Date.now() - this.pausedAt > PAUSE_CONFIRM_MS) {
 			streamDeck.logger.warn("[FitDeck] Treadmill still running after pause — dropping pause");
 			this.paused = false;
 			this.resumeSpeed = null;
 		}
+
+		if (code !== 2) this.resuming = false;
 
 		if (code === 0) {
 			// IDLE: the treadmill has reset its counters. Keep them only across an emulated pause.
@@ -286,9 +299,12 @@ export class TreadmillService extends EventEmitter {
 		if (!this.rawStatus) return;
 		const status: TreadmillStatus = { ...this.rawStatus, ...this.addCounters(this.carried, this.segment) };
 		if (this.paused) {
-			status.status = "PAUSED";
+			// PAUSING while the belt winds down, PAUSED once the treadmill is idle
+			status.status = this.rawStatus.statusCode === 0 ? "PAUSED" : "PAUSING";
 			status.statusCode = 10;
 			status.speed = 0;
+		} else if (this.resuming) {
+			status.status = "RESUMING";
 		}
 		this.lastStatus = status;
 		this.emit("status", status);

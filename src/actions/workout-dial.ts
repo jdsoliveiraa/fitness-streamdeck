@@ -1,6 +1,7 @@
-import { action, SingletonAction, type DialRotateEvent, type DialDownEvent, type TouchTapEvent, type WillAppearEvent, type WillDisappearEvent } from "@elgato/streamdeck";
+import { action, SingletonAction, type DialRotateEvent, type DialDownEvent, type DialUpEvent, type TouchTapEvent, type WillAppearEvent, type WillDisappearEvent } from "@elgato/streamdeck";
 import { treadmillService } from "../services/treadmill-service";
 import { workoutManager } from "../services/workout-manager";
+import { tapControl, DialHold } from "../util/controls";
 import { renderWorkoutBrowser, renderWorkoutProgress, renderGoalSelector, renderGoalPicker, renderWorkoutSummary, type WorkoutSummaryData } from "../util/dial-renderer";
 import type { WorkoutDialSettings, WorkoutProgress, GoalType } from "../types";
 
@@ -47,6 +48,7 @@ export class WorkoutDialAction extends SingletonAction<WorkoutDialSettings> {
 	private listening = false;
 	private browseIndex = 0;
 	private mode: DialMode = "browse";
+	private hold = new DialHold(() => this.redraw());
 
 	// Goal picker state
 	private pickerGoalType: GoalType = "distance";
@@ -59,7 +61,7 @@ export class WorkoutDialAction extends SingletonAction<WorkoutDialSettings> {
 	private progressHandler = (w: WorkoutProgress) => {
 		this.mode = "active";
 		const isGoal = !!w.plan.goalOnly;
-		this.setCanvas(renderWorkoutProgress(w.plan.name, w.percentComplete, progressSubtitle(w), false, isGoal, w.isPaused));
+		this.setCanvas(renderWorkoutProgress(w.plan.name, w.percentComplete, progressSubtitle(w), false, isGoal, w.pauseState));
 	};
 
 	private completeHandler = (w: WorkoutProgress) => {
@@ -105,7 +107,7 @@ export class WorkoutDialAction extends SingletonAction<WorkoutDialSettings> {
 			this.mode = "active";
 			const w = workoutManager.progress;
 			const isGoal = !!w.plan.goalOnly;
-			this.setCanvas(renderWorkoutProgress(w.plan.name, w.percentComplete, progressSubtitle(w), w.isComplete, isGoal, w.isPaused));
+			this.setCanvas(renderWorkoutProgress(w.plan.name, w.percentComplete, progressSubtitle(w), w.isComplete, isGoal, w.pauseState));
 		} else if (workoutManager.progress?.isComplete) {
 			// Show summary if we reappear while complete
 			this.mode = "complete";
@@ -123,7 +125,8 @@ export class WorkoutDialAction extends SingletonAction<WorkoutDialSettings> {
 		}
 	}
 
-	override async onWillDisappear(_ev: WillDisappearEvent<WorkoutDialSettings>): Promise<void> {
+	override async onWillDisappear(ev: WillDisappearEvent<WorkoutDialSettings>): Promise<void> {
+		this.hold.cancel(ev.action.id);
 		if ([...this.actions].length === 0) {
 			workoutManager.off("progress", this.progressHandler);
 			workoutManager.off("complete", this.completeHandler);
@@ -153,11 +156,25 @@ export class WorkoutDialAction extends SingletonAction<WorkoutDialSettings> {
 		}
 	}
 
-	override async onDialDown(_ev: DialDownEvent<WorkoutDialSettings>): Promise<void> {
+	// While a workout is active the dial behaves like the speed/status dials:
+	// tap = pause/resume, hold = stop (ends the workout).
+	override async onDialDown(ev: DialDownEvent<WorkoutDialSettings>): Promise<void> {
+		if (this.mode === "active") {
+			if (treadmillService.isConnected) this.hold.down(ev.action);
+			return;
+		}
 		await this.handlePress();
 	}
 
+	override async onDialUp(ev: DialUpEvent<WorkoutDialSettings>): Promise<void> {
+		if (this.hold.up(ev.action.id) && this.mode === "active") await tapControl();
+	}
+
 	override async onTouchTap(_ev: TouchTapEvent<WorkoutDialSettings>): Promise<void> {
+		if (this.mode === "active") {
+			if (treadmillService.isConnected) await tapControl();
+			return;
+		}
 		await this.handlePress();
 	}
 
@@ -202,10 +219,6 @@ export class WorkoutDialAction extends SingletonAction<WorkoutDialSettings> {
 				};
 				this.mode = "active";
 				await workoutManager.startWorkout(goalPlan);
-				break;
-			}
-			case "active": {
-				await workoutManager.abortWorkout();
 				break;
 			}
 			case "complete": {
@@ -282,9 +295,23 @@ export class WorkoutDialAction extends SingletonAction<WorkoutDialSettings> {
 
 	// --- Canvas output ---
 
+	/** Re-render the current mode's screen (after a hold-to-stop overlay). */
+	private redraw(): void {
+		const w = workoutManager.progress;
+		if (this.mode === "active" && w) {
+			this.setCanvas(renderWorkoutProgress(w.plan.name, w.percentComplete, progressSubtitle(w), false, !!w.plan.goalOnly, w.pauseState));
+		} else if (this.mode === "complete" && this.summaryData) {
+			this.setCanvas(renderWorkoutSummary(this.summaryData));
+		} else if (this.mode === "goal-picker") {
+			this.showGoalPicker();
+		} else {
+			this.showBrowse();
+		}
+	}
+
 	private setCanvas(dataUri: string): void {
 		for (const action of this.actions) {
-			if (action.isDial()) {
+			if (action.isDial() && !this.hold.isOverlaid(action.id)) {
 				action.setFeedback({ canvas: dataUri });
 			}
 		}

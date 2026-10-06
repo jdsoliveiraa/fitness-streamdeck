@@ -1,4 +1,5 @@
-import type { TreadmillStatus, ConnectionState } from "../types";
+import type { TreadmillStatus, ConnectionState, PauseState } from "../types";
+import { pauseLabel, PAUSE_COLOR, STOP_COLOR } from "./pause-label";
 
 function formatTime(seconds: number): string {
 	const m = Math.floor(seconds / 60).toString().padStart(2, "0");
@@ -25,8 +26,8 @@ export function renderStatusKey(status: TreadmillStatus | null, connectionState:
 	const dist = status.distance < 1 ? `${(status.distance * 1000).toFixed(0)}m` : `${status.distance.toFixed(2)}km`;
 	const time = formatTime(status.elapsedSeconds);
 	const cal = status.calories.toFixed(1);
-	const isPaused = status.statusCode === 10;
-	const stateColor = status.statusCode === 3 ? "#00cc66" : status.statusCode === 2 || isPaused ? "#ffaa00" : "#666666";
+	const isPauseFlow = status.statusCode === 10 || status.status === "RESUMING";
+	const stateColor = status.statusCode === 3 ? "#00cc66" : status.statusCode === 2 || isPauseFlow ? PAUSE_COLOR : "#666666";
 
 	return `data:image/svg+xml,${encodeURIComponent(`
 		<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144">
@@ -38,7 +39,7 @@ export function renderStatusKey(status: TreadmillStatus | null, connectionState:
 			<text x="36" y="92" text-anchor="middle" fill="#aaa" font-family="Arial" font-size="12">${escapeXml(time)}</text>
 			<text x="108" y="92" text-anchor="middle" fill="#aaa" font-family="Arial" font-size="12">${escapeXml(dist)}</text>
 			<text x="72" y="116" text-anchor="middle" fill="#ff9900" font-family="Arial" font-size="14" font-weight="bold">${cal} cal</text>
-			<text x="72" y="136" text-anchor="middle" fill="${isPaused ? "#ffaa00" : "#555"}" font-family="Arial" font-size="9" font-weight="${isPaused ? "bold" : "normal"}">${escapeXml(status.status)}</text>
+			<text x="72" y="136" text-anchor="middle" fill="${isPauseFlow ? PAUSE_COLOR : "#555"}" font-family="Arial" font-size="9" font-weight="${isPauseFlow ? "bold" : "normal"}">${escapeXml(status.status)}</text>
 		</svg>
 	`)}`;
 }
@@ -49,7 +50,7 @@ export function renderWorkoutKey(
 	progressLabel: string,
 	isActive: boolean,
 	isComplete: boolean,
-	isPaused = false,
+	pauseState: PauseState | null = null,
 ): string {
 	const barWidth = Math.round((percentComplete / 100) * 104);
 	const barColor = isComplete ? "#00cc66" : "#ff9900";
@@ -62,7 +63,24 @@ export function renderWorkoutKey(
 			<rect x="20" y="54" width="104" height="10" rx="5" fill="#333"/>
 			<rect x="20" y="54" width="${barWidth}" height="10" rx="5" fill="${barColor}"/>
 			<text x="72" y="84" text-anchor="middle" fill="#aaa" font-family="Arial" font-size="11">${escapeXml(progressLabel)}</text>
-			<text x="72" y="110" text-anchor="middle" fill="${isPaused ? '#ffaa00' : isActive ? '#00cc66' : '#666'}" font-family="Arial" font-size="10" font-weight="${isPaused ? 'bold' : 'normal'}">${isPaused ? 'PAUSED' : isActive ? 'TAP TO STOP' : 'TAP TO START'}</text>
+			<text x="72" y="110" text-anchor="middle" fill="${pauseState ? PAUSE_COLOR : isActive ? '#00cc66' : '#666'}" font-family="Arial" font-size="10" font-weight="${pauseState ? 'bold' : 'normal'}">${pauseState ? pauseLabel(pauseState) : isActive ? 'TAP TO STOP' : 'TAP TO START'}</text>
+		</svg>
+	`)}`;
+}
+
+/** Start/Stop key while held: a ring fills over the hold time around a stop square. */
+export function renderHoldKey(pct: number): string {
+	const r = 52;
+	const circumference = 2 * Math.PI * r;
+	const dash = (Math.min(pct, 100) / 100) * circumference;
+	return `data:image/svg+xml,${encodeURIComponent(`
+		<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144">
+			<rect width="144" height="144" fill="#1a1a2e" rx="12"/>
+			<circle cx="72" cy="64" r="${r}" fill="none" stroke="#333" stroke-width="8"/>
+			<circle cx="72" cy="64" r="${r}" fill="none" stroke="${STOP_COLOR}" stroke-width="8" stroke-linecap="round"
+				stroke-dasharray="${dash.toFixed(1)} ${circumference.toFixed(1)}" transform="rotate(-90 72 64)"/>
+			<rect x="56" y="48" width="32" height="32" rx="4" fill="${STOP_COLOR}"/>
+			<text x="72" y="136" text-anchor="middle" fill="#fff" font-family="Arial" font-size="13" font-weight="bold">HOLD TO STOP</text>
 		</svg>
 	`)}`;
 }

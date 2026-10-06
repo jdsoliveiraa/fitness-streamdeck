@@ -108,8 +108,8 @@
                 "layout": "layouts/canvas-layout.json",
                 "TriggerDescription": {
                     "Rotate": "Browse plans",
-                    "Push": "Start / Stop workout",
-                    "Touch": "Start / Stop workout"
+                    "Push": "Start workout / Pause / Resume (hold 2s: Stop)",
+                    "Touch": "Start workout / Pause / Resume"
                 }
             },
             "States": [

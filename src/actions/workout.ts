@@ -29,7 +29,7 @@ export class WorkoutAction extends SingletonAction<WorkoutKeySettings> {
 
 	private progressHandler = (w: WorkoutProgress) => {
 		const label = formatProgressLabel(w);
-		const svg = renderWorkoutKey(w.plan.name, w.percentComplete, label, true, false, w.isPaused);
+		const svg = renderWorkoutKey(w.plan.name, w.percentComplete, label, true, false, w.pauseState);
 		for (const action of this.actions) {
 			if (action.isKey()) {
 				action.setImage(svg);
@@ -69,7 +69,7 @@ export class WorkoutAction extends SingletonAction<WorkoutKeySettings> {
 		if (workoutManager.isActive && workoutManager.progress) {
 			const w = workoutManager.progress;
 			const label = formatProgressLabel(w);
-			const svg = renderWorkoutKey(w.plan.name, w.percentComplete, label, true, false, w.isPaused);
+			const svg = renderWorkoutKey(w.plan.name, w.percentComplete, label, true, false, w.pauseState);
 			if (ev.action.isKey()) ev.action.setImage(svg);
 		} else {
 			this.showIdleForAction(ev);

@@ -5,7 +5,7 @@
  * that Stream Deck actions can subscribe to.
  */
 import { EventEmitter } from "events";
-import { treadmillService } from "./treadmill-service";
+import { treadmillService, pauseStateOf } from "./treadmill-service";
 import type { WorkoutPlan, WorkoutProgress, TreadmillStatus, FitDeckGlobalSettings } from "../types";
 
 export const DEFAULT_PLANS: WorkoutPlan[] = [
@@ -104,7 +104,7 @@ export class WorkoutManager extends EventEmitter {
 			lastSessionSec: 0,
 			isComplete: false,
 			isAborted: false,
-			isPaused: false,
+			pauseState: null,
 		};
 
 		this.emit("progress", this.activeWorkout);
@@ -161,9 +161,9 @@ export class WorkoutManager extends EventEmitter {
 			return;
 		}
 
-		const isPaused = status.statusCode === 10;
-		if (isPaused !== w.isPaused) {
-			w.isPaused = isPaused;
+		const pauseState = pauseStateOf(status);
+		if (pauseState !== w.pauseState) {
+			w.pauseState = pauseState;
 			this.emit("progress", w);
 		}
 

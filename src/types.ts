@@ -14,6 +14,9 @@ export interface TreadmillStatus {
 	heartRate: number;
 }
 
+/** Emulated pause phases: belt winding down, stopped, or restarting. */
+export type PauseState = "pausing" | "paused" | "resuming";
+
 export type ConnectionState = "disconnected" | "scanning" | "connecting" | "connected";
 
 export interface TreadmillDeviceInfo {
@@ -52,7 +55,7 @@ export interface WorkoutProgress {
 	lastSessionSec: number;
 	isComplete: boolean;
 	isAborted: boolean;
-	isPaused: boolean;
+	pauseState: PauseState | null;
 }
 
 // --- Action Settings ---
